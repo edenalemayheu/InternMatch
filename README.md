@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/backend-Node.js-339933?logo=node.js&logoColor=white)](#tech-stack)
 [![Supabase](https://img.shields.io/badge/database-Supabase%20(Postgres)-3ECF8E?logo=supabase&logoColor=white)](#tech-stack)
 
-### Build in a weekend. Match with confidence.
+### Ranked preferences. Fair outcomes.
 
 InternMatch is a two-sided, preference-based internship matching platform — students rank the companies they want, companies rank the students they want, and a fair matching algorithm finds the best mutual fit for both sides.
 
