@@ -1,0 +1,231 @@
+/* ==========================================================================
+   InternMatch Design Tokens
+   Single source of truth for all visual values.
+   Components reference variables only — never hardcoded hex or px.
+   ========================================================================== */
+
+:root {
+  /* ── Brand palette ──────────────────────────────────────────────────── */
+  --color-blob-yellow:  #FFD23F;
+  --color-blob-blue:    #2B4BFF;
+  --color-blob-coral:   #FF6B5E;
+  --color-blob-violet:  #8B5CFF;
+
+  --color-primary:        #2B4BFF;
+  --color-primary-hover:  #1a37e8;
+  --color-primary-light:  rgba(43, 75, 255, 0.12);
+  --color-primary-glow:   rgba(43, 75, 255, 0.35);
+
+  --color-accent:         #10B981;   /* match / success */
+  --color-accent-hover:   #059669;
+  --color-accent-light:   rgba(16, 185, 129, 0.12);
+
+  --color-danger:         #EF4444;
+  --color-danger-hover:   #DC2626;
+  --color-danger-light:   rgba(239, 68, 68, 0.12);
+
+  --color-warning:        #F59E0B;
+  --color-warning-light:  rgba(245, 158, 11, 0.12);
+
+  /* ── Semantic surfaces — light theme ────────────────────────────────── */
+  --color-ground:       #F3F5FF;
+  --color-ground-2:     #ECEFFE;    /* subtle section bg */
+  --color-ink:          #14131A;    /* primary text */
+  --color-ink-2:        #3D3B4A;    /* secondary text */
+  --color-ink-3:        #6B6880;    /* muted / placeholder */
+  --color-border:       rgba(43, 75, 255, 0.12);
+  --color-border-subtle: rgba(20, 19, 26, 0.07);
+
+  /* ── Glass — light theme ─────────────────────────────────────────────── */
+  --glass-bg:               rgba(255, 255, 255, 0.58);
+  --glass-bg-opaque:        rgba(255, 255, 255, 0.85);  /* tables, admin, inputs */
+  --glass-border:           rgba(255, 255, 255, 0.70);
+  --glass-border-inner:     rgba(255, 255, 255, 0.90);  /* top highlight */
+  --glass-blur:             blur(24px) saturate(190%);
+  --glass-shadow:           0 8px 32px rgba(43, 75, 255, 0.10), 0 1px 0 rgba(255,255,255,0.9) inset;
+  --glass-shadow-opaque:    0 2px 12px rgba(20, 19, 26, 0.10);
+  --glass-radius:           32px;
+  --glass-radius-sm:        20px;
+
+  /* ── Typography ──────────────────────────────────────────────────────── */
+  --font-heading: 'Bricolage Grotesque', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-accent:  'Caveat', cursive;
+
+  --text-xs:   0.75rem;   /* 12px */
+  --text-sm:   0.875rem;  /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg:   1.125rem;  /* 18px */
+  --text-xl:   1.25rem;   /* 20px */
+  --text-2xl:  1.5rem;    /* 24px */
+  --text-3xl:  1.875rem;  /* 30px */
+  --text-4xl:  2.25rem;   /* 36px */
+  --text-5xl:  3rem;      /* 48px */
+  --text-6xl:  3.75rem;   /* 60px */
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.6;
+  --leading-loose:  1.8;
+
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-semibold: 600;
+  --weight-bold:    700;
+  --weight-extrabold: 800;
+
+  /* ── Spacing (4px base) ──────────────────────────────────────────────── */
+  --space-1:  0.25rem;   /* 4px  */
+  --space-2:  0.5rem;    /* 8px  */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-5:  1.25rem;   /* 20px */
+  --space-6:  1.5rem;    /* 24px */
+  --space-8:  2rem;      /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+  --space-20: 5rem;      /* 80px */
+  --space-24: 6rem;      /* 96px */
+  --space-32: 8rem;      /* 128px */
+
+  /* ── Radius ──────────────────────────────────────────────────────────── */
+  --radius-sm:   0.5rem;    /* 8px  */
+  --radius-md:   0.75rem;   /* 12px */
+  --radius-lg:   1.25rem;   /* 20px */
+  --radius-xl:   2rem;      /* 32px */
+  --radius-full: 9999px;
+
+  /* ── Shadows ─────────────────────────────────────────────────────────── */
+  --shadow-sm:  0 1px 3px rgba(20, 19, 26, 0.08);
+  --shadow-md:  0 4px 16px rgba(20, 19, 26, 0.10);
+  --shadow-lg:  0 12px 40px rgba(20, 19, 26, 0.13);
+  --shadow-glow: 0 0 24px var(--color-primary-glow);
+
+  /* ── Transitions ─────────────────────────────────────────────────────── */
+  --transition-fast:   150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base:   250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow:   400ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Z-index scale ───────────────────────────────────────────────────── */
+  --z-below:   -1;
+  --z-base:    0;
+  --z-above:   10;
+  --z-navbar:  100;
+  --z-drawer:  200;
+  --z-modal:   300;
+  --z-toast:   400;
+  --z-demo:    500;
+
+  /* ── Blob sizes / positions ──────────────────────────────────────────── */
+  --blob-size-lg: 640px;
+  --blob-size-md: 480px;
+  --blob-size-sm: 320px;
+}
+
+/* ── Dark theme ────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ground:        #0E0D1A;
+    --color-ground-2:      #14131F;
+    --color-ink:           #F0EFFF;
+    --color-ink-2:         #B8B5D4;
+    --color-ink-3:         #7A778F;
+    --color-border:        rgba(139, 92, 255, 0.18);
+    --color-border-subtle: rgba(240, 239, 255, 0.07);
+
+    --glass-bg:            rgba(20, 19, 30, 0.62);
+    --glass-bg-opaque:     rgba(20, 19, 30, 0.88);
+    --glass-border:        rgba(255, 255, 255, 0.09);
+    --glass-border-inner:  rgba(255, 255, 255, 0.14);
+    --glass-shadow:        0 8px 32px rgba(0, 0, 0, 0.40), 0 1px 0 rgba(255,255,255,0.07) inset;
+    --glass-shadow-opaque: 0 2px 12px rgba(0, 0, 0, 0.35);
+
+    --color-primary-light: rgba(43, 75, 255, 0.20);
+    --color-accent-light:  rgba(16, 185, 129, 0.20);
+    --color-danger-light:  rgba(239, 68, 68, 0.20);
+  }
+}
+
+/* Manual dark override via [data-theme="dark"] on <html> */
+[data-theme="dark"] {
+  --color-ground:        #0E0D1A;
+  --color-ground-2:      #14131F;
+  --color-ink:           #F0EFFF;
+  --color-ink-2:         #B8B5D4;
+  --color-ink-3:         #7A778F;
+  --color-border:        rgba(139, 92, 255, 0.18);
+  --color-border-subtle: rgba(240, 239, 255, 0.07);
+
+  --glass-bg:            rgba(20, 19, 30, 0.62);
+  --glass-bg-opaque:     rgba(20, 19, 30, 0.88);
+  --glass-border:        rgba(255, 255, 255, 0.09);
+  --glass-border-inner:  rgba(255, 255, 255, 0.14);
+  --glass-shadow:        0 8px 32px rgba(0, 0, 0, 0.40), 0 1px 0 rgba(255,255,255,0.07) inset;
+  --glass-shadow-opaque: 0 2px 12px rgba(0, 0, 0, 0.35);
+
+  --color-primary-light: rgba(43, 75, 255, 0.20);
+  --color-accent-light:  rgba(16, 185, 129, 0.20);
+  --color-danger-light:  rgba(239, 68, 68, 0.20);
+}
+
+[data-theme="light"] {
+  --color-ground:        #F3F5FF;
+  --color-ground-2:      #ECEFFE;
+  --color-ink:           #14131A;
+  --color-ink-2:         #3D3B4A;
+  --color-ink-3:         #6B6880;
+  --color-border:        rgba(43, 75, 255, 0.12);
+  --color-border-subtle: rgba(20, 19, 26, 0.07);
+
+  --glass-bg:            rgba(255, 255, 255, 0.58);
+  --glass-bg-opaque:     rgba(255, 255, 255, 0.85);
+  --glass-border:        rgba(255, 255, 255, 0.70);
+  --glass-border-inner:  rgba(255, 255, 255, 0.90);
+  --glass-shadow:        0 8px 32px rgba(43, 75, 255, 0.10), 0 1px 0 rgba(255,255,255,0.9) inset;
+
+  --color-primary-light: rgba(43, 75, 255, 0.12);
+  --color-accent-light:  rgba(16, 185, 129, 0.12);
+  --color-danger-light:  rgba(239, 68, 68, 0.12);
+}
+
+/* ── Spec-aligned aliases (ui-foundation-spec.md) ─────────────────────────── */
+/* These map the spec's token names to real values for app pages. */
+:root {
+  --color-primary-50:  #EEF2FF;
+  --color-primary-100: #E0E7FF;
+  --color-primary-300: #A5B4FC;
+  --color-primary-500: #6366F1;
+  --color-primary-600: #4F46E5;
+  --color-primary-700: #4338CA;
+  --color-primary-900: #312E81;
+
+  --color-accent-50:  #ECFDF5;
+  --color-accent-500: #10B981;
+  --color-accent-600: #059669;
+
+  --color-neutral-0:   #FFFFFF;
+  --color-neutral-50:  #F8FAFC;
+  --color-neutral-100: #F1F5F9;
+  --color-neutral-200: #E2E8F0;
+  --color-neutral-400: #94A3B8;
+  --color-neutral-600: #475569;
+  --color-neutral-800: #1E293B;
+  --color-neutral-900: #0F172A;
+
+  --color-warning-50:  #FFFBEB;
+  --color-warning-500: #F59E0B;
+  --color-error-50:    #FEF2F2;
+  --color-error-500:   #EF4444;
+  --color-error-600:   #DC2626;
+  --color-info-500:    #3B82F6;
+
+  --radius-sm-spec: 6px;
+  --radius-md-spec: 8px;
+  --radius-lg-spec: 12px;
+
+  /* App layout */
+  --app-max-width: 1200px;
+  --sidebar-width: 240px;
+}
