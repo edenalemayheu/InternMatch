@@ -1,13 +1,48 @@
-node_modules
-.env
-.env.local
-dist
-.vercel
-.DS_Store
-*.log
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-node_modules
-dist
+# Build output
+dist/
+build/
+coverage/
+.vite/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# SECRETS: never commit real environment files
 .env
-.env.local
-*.zip
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+*credentials*.json
+secrets/
+
+# Hosting and tooling state
+.vercel/
+.netlify/
+supabase/.temp/
+supabase/.branches/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
