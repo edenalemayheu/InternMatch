@@ -61,7 +61,6 @@ export default function Onboarding() {
           skills: form.skills,
           portfolio_url: form.portfolio_url || null,
           availability: form.availability,
-          contact_email: user.email,
         });
       } else {
         await api.createCompany({
@@ -75,6 +74,7 @@ export default function Onboarding() {
       toast.success('Profile created! Welcome to InternMatch.');
       navigate('/dashboard');
     } catch (err) {
+      if (err.data?.fields) setErrors(err.data.fields);
       toast.error(err.message || 'Something went wrong.');
     } finally {
       setLoading(false);

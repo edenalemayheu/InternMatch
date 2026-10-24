@@ -21,7 +21,8 @@ function validate(email, password, confirm) {
 
 export default function Signup() {
   const [params]   = useSearchParams();
-  const role       = params.get('role') || 'student';
+  // Only these two roles exist for signup. Anything else in the URL falls back to student.
+  const role       = params.get('role') === 'company' ? 'company' : 'student';
   const navigate   = useNavigate();
   const { signup } = useAuth();
 

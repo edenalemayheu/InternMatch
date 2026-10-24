@@ -95,7 +95,7 @@ export default function CompanyInterviews() {
         if (r.companyRanking?.ordered_student_ids) setOrder(r.companyRanking.ordered_student_ids);
         if (r.companyRanking?.scores) setScores(r.companyRanking.scores);
       })
-      .catch(() => {})
+      .catch(err => api.showError(toast, err, 'Could not load shortlisted students.'))
       .finally(() => setLoading(false));
   }, [postingId]);
 

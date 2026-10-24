@@ -72,7 +72,6 @@ export default function StudentRank() {
   const toast = useToast();
   const [order,    setOrder]   = useState([]);    // posting ids
   const [postings, setPostings] = useState({});   // id → posting
-  const [companyMap, setCMap]  = useState({});
   const [loading,  setLoading] = useState(true);
   const [saving,   setSaving]  = useState(false);
 
@@ -93,15 +92,7 @@ export default function StudentRank() {
       const map = {};
       for (const posting of (p.postings || [])) map[posting.id] = posting;
       setPostings(map);
-    }).catch(() => {}).finally(() => setLoading(false));
-
-    if (import.meta.env.VITE_USE_MOCK === 'true') {
-      import('../../lib/mock/seedData.js').then(m => {
-        const map = {};
-        for (const c of m.SEED_COMPANIES) map[c.id] = c.company_name;
-        setCMap(map);
-      }).catch(() => {});
-    }
+    }).catch(err => api.showError(toast, err, 'Could not load your ranking.')).finally(() => setLoading(false));
   }, []);
 
   function handleDragEnd(event) {
@@ -133,7 +124,7 @@ export default function StudentRank() {
       await api.saveRanking(order);
       toast.success('Ranking submitted successfully.');
     } catch (err) {
-      toast.error(err.message || 'Failed to save ranking.');
+      api.showError(toast, err, 'Failed to save ranking.');
     } finally {
       setSaving(false);
     }
@@ -179,7 +170,7 @@ export default function StudentRank() {
                 <SortableItem
                   key={id} id={id} index={idx} total={order.length}
                   posting={postings[id]}
-                  companyName={postings[id] ? (companyMap[postings[id].company_id] || '') : ''}
+                  companyName={postings[id]?.company_name || ''}
                   onRemove={remove} onUp={moveUp} onDown={moveDown}
                   locked={locked}
                 />

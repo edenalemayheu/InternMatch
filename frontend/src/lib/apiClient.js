@@ -15,26 +15,104 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 // ── Simulated latency for mock (makes loading states visible) ─────────────────
 const delay = (ms = 200) => new Promise(r => setTimeout(r, ms));
 
-// ── Auth token (real mode) ────────────────────────────────────────────────────
-let _token = null;
-export function setAuthToken(token) { _token = token; }
-export function clearAuthToken()    { _token = null; }
+// ── Session (real mode) ───────────────────────────────────────────────────────
+// The access token, refresh token and expiry are kept in localStorage so a page
+// reload keeps the user signed in. Trade-off: a script injected into the page
+// could read them. This app renders no user-supplied HTML, which keeps that
+// risk low for the current build.
+const SESSION_KEY = 'internmatch.session';
+let _session   = null;   // { token, refresh_token, expires_at }
+let _refreshing = null;  // at most one refresh request at a time
+let _onExpired = null;   // set by AuthContext
 
-async function apiFetch(method, path, body) {
+function readStored() {
+  try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
+}
+function persist(session) {
+  try {
+    if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(SESSION_KEY);
+  } catch { /* storage unavailable: session lasts until reload */ }
+}
+function currentSession() { if (!_session) _session = readStored(); return _session; }
+function storeSession(data) {
+  _session = { token: data.token, refresh_token: data.refresh_token, expires_at: data.expires_at };
+  persist(_session);
+}
+function dropSession() { _session = null; persist(null); }
+function expire() { dropSession(); if (_onExpired) _onExpired(); }
+
+/** Kept for older callers. Prefer login()/signup(), which store the whole session. */
+export function setAuthToken(token) { _session = { ...(currentSession() || {}), token }; }
+export function clearAuthToken()    { dropSession(); }
+/** Called once by AuthContext: runs when a session can no longer be renewed. */
+export function onSessionExpired(cb) {
+  _onExpired = cb;
+  return () => { if (_onExpired === cb) _onExpired = null; };
+}
+
+/** One HTTP round trip. Turns every failure into an Error with a readable message. */
+async function request(method, path, body, token) {
   const headers = { 'Content-Type': 'application/json' };
-  if (_token) headers['Authorization'] = `Bearer ${_token}`;
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error(data.error || 'Request failed'), { status: res.status, data });
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method, headers, body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw Object.assign(new Error('Cannot reach the server. Check your connection and try again.'), { status: 0, data: {} });
+  }
+
+  const text = await res.text();
+  let data = null;
+  if (text) { try { data = JSON.parse(text); } catch { data = null; } }
+
+  if (!res.ok) {
+    const message = data?.error
+      || (res.status >= 500 ? 'The server had a problem. Try again in a moment.' : 'Request failed.');
+    throw Object.assign(new Error(message), { status: res.status, data: data || {} });
+  }
+  if (data === null) {
+    if (!text) return {}; // 204 or empty body
+    throw Object.assign(new Error('Unexpected response from the server.'), { status: res.status, data: {} });
+  }
   return data;
 }
 
+async function refreshSession() {
+  if (_refreshing) return _refreshing;
+  const rt = currentSession()?.refresh_token;
+  if (!rt) return false;
+  _refreshing = (async () => {
+    try { storeSession(await request('POST', '/auth/refresh', { refresh_token: rt })); return true; }
+    catch { return false; }
+    finally { _refreshing = null; }
+  })();
+  return _refreshing;
+}
+
+const NO_REFRESH = new Set(['/auth/login', '/auth/signup', '/auth/refresh', '/auth/logout']);
+
+/** Authenticated call. On a 401 it renews the session once and retries once. */
+async function apiFetch(method, path, body) {
+  try {
+    return await request(method, path, body, currentSession()?.token);
+  } catch (err) {
+    if (err.status !== 401 || NO_REFRESH.has(path) || !currentSession()) throw err;
+    if (await refreshSession()) {
+      try { return await request(method, path, body, currentSession().token); }
+      catch (err2) { if (err2.status === 401) expire(); throw err2; }
+    }
+    expire();
+    throw err;
+  }
+}
+
 // ── Mock imports (only evaluated when USE_MOCK=true, via dynamic structure) ───
-// We use a lazy import pattern so mock code never ships to production.
+// Lazy import: the mock only loads when USE_MOCK is true.
 let _mock = null;
 async function getMock() {
   if (_mock) return _mock;
@@ -47,13 +125,40 @@ async function getMock() {
   return _mock;
 }
 
+/**
+ * Show an API error as a toast, except when the session just ended: the user is
+ * already being sent to /login with an explanation, so a second message is noise.
+ */
+export function showError(toast, err, fallback) {
+  if (err?.status === 401) return;
+  toast.error(err?.message || fallback);
+}
+
+/** Mock only: the real server joins company_name onto every posting it returns. */
+function withCompanyName(db, posting) {
+  const company = db.companies.find(c => c.id === posting.company_id);
+  return { ...posting, company_name: company?.company_name ?? '' };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** POST /api/auth/login */
+function assertRole(role) {
+  if (role !== 'student' && role !== 'company') {
+    throw Object.assign(new Error('Choose student or company.'), {
+      status: 400, data: { fields: { role: 'Must be student or company' } },
+    });
+  }
+}
+
+/** POST /api/auth/login -> { user } (the session tokens are stored internally) */
 export async function login(email, password) {
-  if (!USE_MOCK) return apiFetch('POST', '/auth/login', { email, password });
+  if (!USE_MOCK) {
+    const data = await request('POST', '/auth/login', { email, password });
+    storeSession(data);
+    return { user: data.user };
+  }
 
   await delay();
   const { getDb, setSession } = await getMock();
@@ -72,15 +177,20 @@ export async function login(email, password) {
   return { user: sessionUser };
 }
 
-/** POST /api/auth/signup */
+/** POST /api/auth/signup -> { user }. Only 'student' and 'company' are accepted. */
 export async function signup(email, password, role) {
-  if (!USE_MOCK) return apiFetch('POST', '/auth/signup', { email, password, role });
+  assertRole(role);
+  if (!USE_MOCK) {
+    const data = await request('POST', '/auth/signup', { email, password, role });
+    storeSession(data);
+    return { user: data.user };
+  }
 
   await delay();
   const { getDb, updateDb, newId, setSession } = await getMock();
   const db = getDb();
   if (db.users.find(u => u.email === email)) {
-    throw Object.assign(new Error('An account with this email already exists.'), { status: 400 });
+    throw Object.assign(new Error('An account with this email already exists.'), { status: 409 });
   }
   const userId = newId('u');
   updateDb(db => {
@@ -92,20 +202,30 @@ export async function signup(email, password, role) {
   return { user: sessionUser };
 }
 
-/** Get current session */
+/** GET /api/auth/me -> { user } or { user: null } when nobody is signed in. */
 export async function getCurrentUser() {
-  if (!USE_MOCK) return apiFetch('GET', '/auth/me');
+  if (!USE_MOCK) {
+    if (!currentSession()?.token) return { user: null }; // nothing to restore, skip the request
+    const data = await apiFetch('GET', '/auth/me');
+    return { user: data.user ?? null };
+  }
 
   await delay(50);
   const { getSession } = await getMock();
-  return getSession();
+  return { user: getSession() || null };
 }
 
-/** Logout */
+/** POST /api/auth/logout. Never throws: local sign-out always succeeds. */
 export async function logout() {
-  if (!USE_MOCK) return apiFetch('POST', '/auth/logout');
+  if (!USE_MOCK) {
+    try { if (currentSession()?.token) await request('POST', '/auth/logout', undefined, currentSession().token); }
+    catch { /* the server may be unreachable; sign out locally anyway */ }
+    dropSession();
+    return { ok: true };
+  }
   const { clearSession } = await getMock();
   clearSession();
+  return { ok: true };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,16 +254,22 @@ export async function createStudent(data) {
   const session = getSession();
   if (!session || session.role !== 'student') throw Object.assign(new Error('Forbidden'), { status: 403 });
 
+  // The server decides id, user_id and contact_email. Anything sent for them is ignored.
+  const { id: _id, user_id: _uid, contact_email: _ce, ...fields } = data;
   const studentId = newId('s');
+  const student = {
+    id: studentId, user_id: session.id, ...fields,
+    contact_email: session.email, created_at: new Date().toISOString(),
+  };
   updateDb(db => {
-    db.students.push({ id: studentId, user_id: session.id, ...data, created_at: new Date().toISOString() });
+    db.students.push(student);
     const user = db.users.find(u => u.id === session.id);
     if (user) user.hasProfile = true;
     return db;
   });
   const updated = { ...session, hasProfile: true };
   setSession(updated);
-  return { student: { id: studentId, user_id: session.id, ...data } };
+  return { student };
 }
 
 /** GET /api/students/me */
@@ -188,12 +314,13 @@ export async function getPostings({ all = false } = {}) {
   const { getDb, getSession } = await getMock();
   const db = getDb();
   const session = getSession();
-  const postings = db.postings.filter(p => p.round_id === db.round.id);
+  const postings = db.postings.filter(p => p.round_id === db.round.id).map(p => withCompanyName(db, p));
 
-  if (all || !session) return { postings };
+  // all=true (or nobody to filter for): `postings` is every posting
+  if (all || !session) return { postings, allPostings: postings };
 
   const student = db.students.find(s => s.user_id === session.id);
-  if (!student) return { postings };
+  if (!student) return { postings, allPostings: postings };
 
   const relevant = postings.filter(p =>
     (!p.required_department || p.required_department === student.department) ||
@@ -212,7 +339,9 @@ export async function getMyPostings() {
   const session = getSession();
   const company = db.companies.find(c => c.user_id === session?.id);
   if (!company) return { postings: [] };
-  const postings = db.postings.filter(p => p.company_id === company.id && p.round_id === db.round.id);
+  const postings = db.postings
+    .filter(p => p.company_id === company.id && p.round_id === db.round.id)
+    .map(p => withCompanyName(db, p));
   return { postings };
 }
 
@@ -227,10 +356,16 @@ export async function createPosting(data) {
   const company = db.companies.find(c => c.user_id === session?.id);
   if (!company) throw Object.assign(new Error('Company profile not found'), { status: 403 });
 
+  // Only these fields come from the client; the server sets everything else.
+  const { title, required_department = '', required_skills = [], capacity } = data;
   const id = newId('p');
-  const posting = { id, company_id: company.id, round_id: db.round.id, ...data, created_at: new Date().toISOString() };
+  const posting = {
+    id, company_id: company.id, round_id: db.round.id,
+    title, required_department, required_skills, capacity,
+    created_at: new Date().toISOString(),
+  };
   updateDb(db => { db.postings.push(posting); return db; });
-  return { posting };
+  return { posting: { ...posting, company_name: company.company_name } };
 }
 
 /** PATCH /api/postings/:id — update posting */
@@ -327,16 +462,18 @@ export async function createCompany(data) {
   const session = getSession();
   if (!session || session.role !== 'company') throw Object.assign(new Error('Forbidden'), { status: 403 });
 
+  const { id: _id, user_id: _uid, ...fields } = data;
   const companyId = newId('co');
+  const company = { id: companyId, user_id: session.id, ...fields, created_at: new Date().toISOString() };
   updateDb(db => {
-    db.companies.push({ id: companyId, user_id: session.id, ...data, created_at: new Date().toISOString() });
+    db.companies.push(company);
     const user = db.users.find(u => u.id === session.id);
     if (user) user.hasProfile = true;
     return db;
   });
   const updated = { ...session, hasProfile: true };
   setSession(updated);
-  return { company: { id: companyId, user_id: session.id, ...data } };
+  return { company };
 }
 
 /** GET /api/companies/me */

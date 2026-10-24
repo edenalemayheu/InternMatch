@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
-import * as api from './apiClient.js';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); });
+// Load a fresh copy of the client in demo mode, whatever the local .env says.
+let api;
+beforeEach(async () => {
+  localStorage.clear(); sessionStorage.clear();
+  vi.resetModules();
+  vi.stubEnv('VITE_USE_MOCK', 'true');
+  api = await import('./apiClient.js');
+});
+afterEach(() => vi.unstubAllEnvs());
 
 describe('profile editing (mock API)', () => {
   it('student can update their profile and gets the saved record back', async () => {

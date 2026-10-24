@@ -29,7 +29,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
-  const { login }  = useAuth();
+  const { login, sessionExpired } = useAuth();
   const toast      = useToast();
   const navigate   = useNavigate();
 
@@ -62,6 +62,12 @@ export default function Login() {
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-neutral-600)', textAlign: 'center', marginBottom: 'var(--space-8)' }}>
           Don't have an account? <Link to="/signup?role=student" style={{ color: 'var(--color-primary-600)' }}>Sign up</Link>
         </p>
+
+        {sessionExpired && !error && (
+          <div role="status" style={{ background: 'var(--color-neutral-100)', border: '1px solid var(--color-neutral-300)', borderRadius: 6, padding: 'var(--space-3)', marginBottom: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-neutral-700)', textAlign: 'center' }}>
+            Your session ended. Please sign in again.
+          </div>
+        )}
 
         <Card>
           {error && (

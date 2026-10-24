@@ -30,7 +30,8 @@ for (const m of readFileSync(docsFile, 'utf8').matchAll(/^###\s+`(GET|POST|PATCH
 /* 2. Endpoints the frontend calls in real (non-mock) mode */
 const clientFile = join(ROOT, 'frontend/src/lib/apiClient.js');
 const called = new Map();
-for (const m of readFileSync(clientFile, 'utf8').matchAll(/apiFetch\(\s*'(GET|POST|PATCH|PUT|DELETE)'\s*,\s*(`[^`]*`|'[^']*')/g)) {
+// apiFetch() is the authenticated call; request() is the plain call used by login, signup, refresh and logout.
+for (const m of readFileSync(clientFile, 'utf8').matchAll(/\b(?:apiFetch|request)\(\s*'(GET|POST|PATCH|PUT|DELETE)'\s*,\s*(`[^`]*`|'[^']*')/g)) {
   let p = m[2].slice(1, -1)
     .replace(/\$\{[^}]*\?[^}]*\}/g, '')   // optional query suffix such as ${all ? '?all=true' : ''}
     .replace(/\$\{[^}]*\}/g, ':p')        // path parameters

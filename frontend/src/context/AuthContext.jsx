@@ -11,22 +11,27 @@ const AuthCtx = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(undefined); // undefined = loading
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
-  // Restore session on mount
+  // Restore the session on mount, and hear about sessions that can no longer be renewed
   useEffect(() => {
-    api.getCurrentUser().then(u => {
-      setUser(u || null);
-    }).catch(() => setUser(null)).finally(() => setLoading(false));
+    api.getCurrentUser()
+      .then(({ user: u }) => setUser(u || null))
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
+    return api.onSessionExpired(() => { setUser(null); setSessionExpired(true); });
   }, []);
 
   const login = useCallback(async (email, password) => {
     const { user: u } = await api.login(email, password);
+    setSessionExpired(false);
     setUser(u);
     return u;
   }, []);
 
   const signup = useCallback(async (email, password, role) => {
     const { user: u } = await api.signup(email, password, role);
+    setSessionExpired(false);
     setUser(u);
     return u;
   }, []);
@@ -37,13 +42,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    const u = await api.getCurrentUser();
+    const { user: u } = await api.getCurrentUser();
     setUser(u || null);
     return u;
   }, []);
 
   return (
-    <AuthCtx.Provider value={{ user, loading, login, signup, logout, refreshUser }}>
+    <AuthCtx.Provider value={{ user, loading, sessionExpired, login, signup, logout, refreshUser }}>
       {children}
     </AuthCtx.Provider>
   );

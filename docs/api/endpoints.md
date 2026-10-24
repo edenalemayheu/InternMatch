@@ -105,8 +105,8 @@ Auth: student. Body: any subset of `{ full_name, department, year, skills, portf
 
 ### `GET /api/postings`
 Auth: student. Postings of the current round.
-- `200` `{ postings, allPostings }`. `allPostings` is every posting. `postings` is the subset relevant to the student: the posting's `required_department` is empty or equals the student's department, or at least one required skill matches the student's skills. If that subset is empty, `postings` equals `allPostings`.
-- `?all=true` is accepted for compatibility and has the same response.
+- `200` `{ postings, allPostings }`. `allPostings` is always every posting of the round. `postings` is the subset relevant to the student: the posting's `required_department` is empty or equals the student's department, or at least one required skill matches the student's skills. If that subset is empty, `postings` equals `allPostings`.
+- With `?all=true`, `postings` is **every** posting (identical to `allPostings`). The My Ranking page uses this to look up details for every posting in a student's list, including ones that are not "relevant" to them.
 
 ### `POST /api/rankings`
 Auth: student with a profile. Body `{ ordered_posting_ids: string[] }`.

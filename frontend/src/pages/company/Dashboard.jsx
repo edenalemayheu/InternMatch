@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { Briefcase, Users, CheckCircle2, ChevronRight } from 'lucide-react';
 import { useRound, PHASE_LABELS, phaseAtLeast } from '../../context/RoundContext.jsx';
 import * as api from '../../lib/apiClient.js';
+import { useToast } from '../../context/ToastContext.jsx';
 import Stepper  from '../../components/ui/Stepper.jsx';
 import Card     from '../../components/ui/Card.jsx';
 import Banner   from '../../components/ui/Banner.jsx';
@@ -27,6 +28,7 @@ const PHASE_MESSAGES = {
 
 export default function CompanyDashboard() {
   const { round, loading: roundLoading } = useRound();
+  const toast = useToast();
   const [postings, setPostings] = useState([]);
   const [stats,    setStats]    = useState(null);
   const [matches,  setMatches]  = useState([]);
@@ -41,12 +43,12 @@ export default function CompanyDashboard() {
     ]).then(([p, s]) => {
       setPostings(p.postings || []);
       setStats(s);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(err => api.showError(toast, err, 'Could not load your dashboard.')).finally(() => setLoading(false));
   }, [phase]);
 
   useEffect(() => {
     if (phase === 'revealed') {
-      api.getMyMatches().then(r => setMatches(r.matches || [])).catch(() => {});
+      api.getMyMatches().then(r => setMatches(r.matches || [])).catch(err => api.showError(toast, err, 'Could not load your matches.'));
     }
   }, [phase]);
 

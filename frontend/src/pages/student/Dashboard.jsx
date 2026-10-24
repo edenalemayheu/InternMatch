@@ -39,13 +39,17 @@ export default function StudentDashboard() {
         setRanking(r.ranking);
         setNotifications(n.notifications);
       })
-      .catch(() => {})
+      .catch(err => api.showError(toast, err, 'Could not load your dashboard.'))
       .finally(() => setDataLoading(false));
   }, [round?.phase]);
 
   async function markRead(id) {
-    await api.markNotificationRead(id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    try {
+      await api.markNotificationRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch (err) {
+      api.showError(toast, err, 'Could not mark it as read.');
+    }
   }
 
   if (roundLoading || dataLoading) {

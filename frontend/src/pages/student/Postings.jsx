@@ -38,34 +38,30 @@ export default function StudentPostings() {
       setRelevant(rel.postings || []);
       setAll(allRes.postings || []);
       setRanking(rank.ranking?.ordered_posting_ids || []);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(err => api.showError(toast, err, 'Could not load postings.')).finally(() => setLoading(false));
   }, []);
 
-  // Load companies for display
-  const [companyMap, setCompanyMap] = useState({});
-  useEffect(() => {
-    // Try to get company names from mock seed data (mock mode only)
-    if (import.meta.env.VITE_USE_MOCK === 'true') {
-      import('../../lib/mock/seedData.js').then(m => {
-        const map = {};
-        for (const c of m.SEED_COMPANIES) map[c.id] = c.company_name;
-        setCompanyMap(map);
-      }).catch(() => {});
-    }
-  }, []);
-
+  // Save first, then update the screen, so the list never shows something the server refused.
   async function addToRanking(postingId) {
     const updated = [...ranking, postingId];
-    await api.saveRanking(updated);
-    setRanking(updated);
-    toast.success('Added to your ranking.');
+    try {
+      await api.saveRanking(updated);
+      setRanking(updated);
+      toast.success('Added to your ranking.');
+    } catch (err) {
+      api.showError(toast, err, 'Could not update your ranking.');
+    }
   }
 
   async function removeFromRanking(postingId) {
     const updated = ranking.filter(id => id !== postingId);
-    await api.saveRanking(updated);
-    setRanking(updated);
-    toast.info('Removed from your ranking.');
+    try {
+      await api.saveRanking(updated);
+      setRanking(updated);
+      toast.info('Removed from your ranking.');
+    } catch (err) {
+      api.showError(toast, err, 'Could not update your ranking.');
+    }
   }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-16)' }}><Spinner /></div>;
@@ -106,7 +102,7 @@ export default function StudentPostings() {
               <Card key={p.id} hover>
                 <div style={{ marginBottom: 'var(--space-3)' }}>
                   <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>
-                    {companyMap[p.company_id] || p.company_id}
+                    {p.company_name}
                   </p>
                   <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--color-neutral-900)' }}>{p.title}</h3>
                 </div>
