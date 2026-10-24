@@ -46,3 +46,6 @@ logs/
 Thumbs.db
 desktop.ini
 *.swp
+
+# Archives
+*.zip
