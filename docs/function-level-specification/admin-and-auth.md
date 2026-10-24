@@ -6,7 +6,10 @@
 `POST /api/auth/signup` — creates a Supabase Auth user, then a corresponding `users` row with `role` set from the request body (`student` or `company`) and `is_admin = false`. Role is **never** settable by the client for `is_admin`.
 
 ### 1.2 Login
-`POST /api/auth/login` — authenticates via Supabase Auth, then looks up the `users` row to return `{ role, is_admin, hasProfile }`. `hasProfile` is computed by checking for an existing row in `students` or `companies` matching `user_id`.
+`POST /api/auth/login` — authenticates via Supabase Auth, then looks up the `users` row and returns `{ token, refresh_token, expires_at, user }`, where `user` is `{ id, email, role, is_admin, hasProfile }`. `hasProfile` is computed by checking for an existing row in `students` or `companies` matching `user_id` (always true for admins). The exact response shapes are defined in `api/endpoints.md`, which is the single source of truth for the API.
+
+### 1.2a Sessions and refresh
+Supabase access tokens expire (about one hour by default), so a token alone would log users out mid-session. Login and signup therefore also return a `refresh_token`. When the frontend receives a `401` it calls `POST /api/auth/refresh` once with that refresh token, stores the new pair (refresh tokens rotate), and retries the failed request. Only if the refresh also fails does it send the user to `/login`. `GET /api/auth/me` restores the user after a page reload.
 
 ### 1.3 Client-side routing after login
 ```
