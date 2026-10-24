@@ -1,34 +1,19 @@
-/**
- * LandingFooter — matches v4 copy exactly.
- * InternMatch | How it works | Algorithm | Timeline | Fair Chances. Real Fit. · MIT License
- * No admin link.
- */
-import styles from './Landing.module.css';
-
+/** LandingFooter: author, GitHub link and license, per pages.md. No admin link. */
 export default function LandingFooter() {
   return (
-    <footer className={styles.footer}>
-      <div className={styles.footerInner}>
-        <div className={styles.footerBrand}>
-          <span className={styles.footerLogo}>Intern<span>Match</span></span>
-          <span className={styles.footerTagline}>Fair Chances. Real Fit.</span>
+    <footer className="lp-footer">
+      <div className="lp-wrap lp-footer__inner">
+        <div>
+          <p className="lp-logo lp-logo--footer">Intern<span>Match</span></p>
+          <p className="lp-footer__tag">Fair Chances. Real Fit.</p>
         </div>
-
-        <nav className={styles.footerLinks} aria-label="Footer links">
-          <a href="#how-it-works" className={styles.footerLink}>How it works</a>
-          <a href="#algorithm"    className={styles.footerLink}>Algorithm</a>
-          <a href="#timeline"     className={styles.footerLink}>Timeline</a>
-          <a
-            href="https://github.com/edenalemayheu/InternMatch"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.footerLink}
-          >
-            GitHub ↗
-          </a>
+        <nav aria-label="Footer" className="lp-footer__links">
+          <a href="#round">The round</a>
+          <a href="#why">Why ranking</a>
+          <a href="#score">The score</a>
+          <a href="https://github.com/edenalemayheu/InternMatch" target="_blank" rel="noopener noreferrer">GitHub</a>
         </nav>
-
-        <p className={styles.footerMeta}>· MIT License</p>
+        <p className="lp-footer__meta">Designed and built by Eden Alemayehu. MIT License.</p>
       </div>
     </footer>
   );

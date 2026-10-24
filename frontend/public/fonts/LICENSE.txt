@@ -1,0 +1,4 @@
+Fraunces (Copyright 2020 The Fraunces Project Authors) and Hanken Grotesk
+(Copyright 2022 The Hanken Grotesk Project Authors) are licensed under the
+SIL Open Font License, Version 1.1: https://openfontlicense.org
+Files are the latin subsets distributed by @fontsource-variable.
