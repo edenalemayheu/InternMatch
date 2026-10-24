@@ -15,8 +15,15 @@ import adminRoutes from './routes/admin.routes.js';
 
 const app = express();
 
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || true }));
-app.use(express.json());
+// CORS: FRONTEND_ORIGIN may list several origins separated by commas.
+// In production it is required, so the API never silently accepts every origin.
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
+  .split(',').map((o) => o.trim()).filter(Boolean);
+if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+  throw new Error('FRONTEND_ORIGIN must be set when NODE_ENV=production');
+}
+app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : true }));
+app.use(express.json({ limit: '100kb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
@@ -38,7 +45,9 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: err.message || 'Server error' });
+  // Never leak database or internal details to clients in production.
+  const message = process.env.NODE_ENV === 'production' ? 'Server error' : (err.message || 'Server error');
+  res.status(err.status || 500).json({ error: message });
 });
 
 // On Vercel the platform handles listening; locally we start our own server.
