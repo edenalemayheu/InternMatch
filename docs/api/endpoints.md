@@ -36,7 +36,10 @@ Auth: student, no existing profile. Body: `{ full_name, department, year, skills
 Auth: student. Returns the caller's own profile.
 
 ### `PATCH /api/students/me`
-Auth: student. Body: partial profile fields. Updates profile (not phase-restricted).
+Auth: student. Body: partial profile fields, any of `{ full_name, department, year, skills[], portfolio_url, availability }`. Updates the caller's profile and returns `{ student }` (the full updated record). **Not phase-restricted.**
+- `contact_email`, `id` and `user_id` are never editable: ignore them if sent (the contact email always comes from the account).
+- Validation failure → `400 { error, fields: { <field>: <message> } }`; the frontend shows `fields` next to the matching inputs.
+- 404 if the caller has no profile yet (use `POST /api/students`).
 
 ### `GET /api/postings`
 Auth: student. Query params: `?all=true` to bypass department/skill filtering. Returns postings for the current round, filtered by the student's department/skills unless `all=true`.
@@ -53,6 +56,12 @@ Auth: student. Returns the caller's current ranking for the active round.
 
 ### `POST /api/companies`
 Auth: company, no existing profile. Body: `{ company_name, industry, contact_person, logo_url? }`.
+
+### `GET /api/companies/me`
+Auth: company. Returns `{ company }` (the caller's own profile) or `{ company: null }` if none yet.
+
+### `PATCH /api/companies/me`
+Auth: company. Body: partial profile fields, any of `{ company_name, industry, contact_person, logo_url }` (`logo_url` may be `null` to clear it). Updates the caller's profile and returns `{ company }` (the full updated record). **Not phase-restricted.** `id` and `user_id` are never editable. Validation failure → `400 { error, fields }`, same as students.
 
 ### `POST /api/postings`
 Auth: company. Body: `{ title, required_department, required_skills[], capacity }`. Creates a posting tied to the current round.

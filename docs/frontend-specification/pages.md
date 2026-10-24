@@ -12,6 +12,7 @@ All visual detail (colors, spacing, type, component states) referenced below com
 | `/login` | Public | Shared login (student, company, admin) |
 | `/onboarding` | Auth'd, no profile yet | Role-specific profile setup |
 | `/dashboard` | Student or Company | Role-based home |
+| `/profile` | Student or Company | View and edit own profile |
 | `/postings` | Student | Browse postings |
 | `/rank` | Student | Build/edit ranked list |
 | `/company/postings` | Company | Manage postings |
@@ -49,6 +50,18 @@ No role-selection dropdown on a generic "Sign Up" — the two hero CTAs route di
 - **Student fields:** full name, department (dropdown), year (dropdown), skills (tag input, multi-select), portfolio URL (optional), availability (dropdown or short text). ~6 fields max.
 - **Company fields:** company name, industry (dropdown), contact person, logo (optional upload). ~4 fields max.
 - Submit button uses primary button style; on success, redirect to `/dashboard`.
+
+## `/profile`
+
+Reached from the **Profile** link in the top navigation (students and companies). Admins are redirected to `/admin`. Same centered-card layout as `/onboarding`, pre-filled from `GET /api/students/me` or `GET /api/companies/me`.
+
+- **Student fields:** full name, department, year, skills, portfolio URL (optional), availability: the same fields, options and validation as onboarding.
+- **Company fields:** company name, industry, contact person, logo URL (optional).
+- **Account email:** shown read-only (disabled input) for both roles. Students get the helper text that companies only see it if they shortlist them.
+- **Explanatory line under the title:** students are told companies review this profile and that department/skills drive the "relevant" postings filter; companies are told students see their name and contact person.
+- **Actions:** "Save changes" and "Discard". Both are disabled until something has changed. Save sends only the changed fields via `PATCH`; Discard resets the form to the last saved values.
+- **Feedback:** success toast on save; on `400 { fields }` show each message under its input; other errors as an error toast.
+- **Not phase-restricted:** profile edits are allowed in every round phase.
 
 ## `/dashboard` (Student)
 

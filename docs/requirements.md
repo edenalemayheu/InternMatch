@@ -36,6 +36,10 @@
 ### 1.6 Notifications
 - FR-22: Users receive an in-app (and email) notification when shortlisted, and when match results are revealed.
 
+### 1.7 Profile Management
+- FR-23: A student or company can view and edit their own profile at any time, in any round phase, from `/profile`. Edits apply to all later reads (companies reviewing applicants see the current student profile).
+- FR-24: The account email (the student's `contact_email`) cannot be changed through profile editing; the server ignores it if sent.
+
 ## 2. Non-Functional Requirements
 
 - NFR-1 (Security): Contact information (student email) must never be returned by any API response unless the requesting company has a `shortlisted` status for that student, enforced server-side.

@@ -158,19 +158,22 @@ export async function getMyStudentProfile() {
   return { student: student || null };
 }
 
-/** PATCH /api/students/me */
+/** PATCH /api/students/me — partial update, returns { student } */
 export async function updateStudentProfile(data) {
   if (!USE_MOCK) return apiFetch('PATCH', '/students/me', data);
 
   await delay();
-  const { updateDb, getSession } = await getMock();
+  const { updateDb, getDb, getSession } = await getMock();
   const session = getSession();
+  if (!session || session.role !== 'student') throw Object.assign(new Error('Forbidden'), { status: 403 });
+  // contact_email comes from the account and is never editable here
+  const { contact_email, id, user_id, ...allowed } = data;
   updateDb(db => {
-    const i = db.students.findIndex(s => s.user_id === session?.id);
-    if (i >= 0) Object.assign(db.students[i], data);
+    const i = db.students.findIndex(s => s.user_id === session.id);
+    if (i >= 0) Object.assign(db.students[i], allowed);
     return db;
   });
-  return { ok: true };
+  return { student: getDb().students.find(s => s.user_id === session.id) || null };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -346,6 +349,23 @@ export async function getMyCompanyProfile() {
   const db = getDb();
   const company = db.companies.find(c => c.user_id === session?.id);
   return { company: company || null };
+}
+
+/** PATCH /api/companies/me — partial update, returns { company } */
+export async function updateCompanyProfile(data) {
+  if (!USE_MOCK) return apiFetch('PATCH', '/companies/me', data);
+
+  await delay();
+  const { updateDb, getDb, getSession } = await getMock();
+  const session = getSession();
+  if (!session || session.role !== 'company') throw Object.assign(new Error('Forbidden'), { status: 403 });
+  const { id, user_id, ...allowed } = data;
+  updateDb(db => {
+    const i = db.companies.findIndex(c => c.user_id === session.id);
+    if (i >= 0) Object.assign(db.companies[i], allowed);
+    return db;
+  });
+  return { company: getDb().companies.find(c => c.user_id === session.id) || null };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

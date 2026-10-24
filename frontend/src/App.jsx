@@ -7,6 +7,7 @@
  *   /login               Public          Login
  *   /onboarding          Auth (no profile) Onboarding
  *   /dashboard           Student|Company   Role-based dashboard
+ *   /profile             Student|Company   Edit own profile
  *   /postings            Student           Browse postings
  *   /rank                Student           Ranking
  *   /company/postings    Company           Manage postings
@@ -33,6 +34,7 @@ const Login       = lazy(() => import('./pages/Login.jsx'));
 const Signup      = lazy(() => import('./pages/Signup.jsx'));
 const Onboarding  = lazy(() => import('./pages/Onboarding.jsx'));
 const NotFound    = lazy(() => import('./pages/NotFound.jsx'));
+const Profile     = lazy(() => import('./pages/Profile.jsx'));
 
 const StudentDashboard = lazy(() => import('./pages/student/Dashboard.jsx'));
 const StudentPostings  = lazy(() => import('./pages/student/Postings.jsx'));
@@ -134,6 +136,12 @@ function InnerApp() {
                 {/* Render student or company dashboard based on role */}
                 <RoleBasedDashboard />
               </AppLayout>
+            </RequireAuth>
+          } />
+
+          <Route path="/profile" element={
+            <RequireAuth>
+              <AppLayout><Profile /></AppLayout>
             </RequireAuth>
           } />
 

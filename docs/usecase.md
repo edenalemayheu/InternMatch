@@ -13,7 +13,7 @@ Actors: **Student**, **Company**, **Admin**
 2. Student fills in: name, department, year, skills, portfolio URL, availability.
 3. Student submits the form.
 **Postcondition:** A `students` row is created, linked to the user's account. Student is redirected to `/dashboard`.
-**Alternate flow:** Student can return to edit their profile at any time via `/dashboard` → "Edit Profile"; profile edits are not phase-restricted.
+**Alternate flow:** Student can return to edit their profile at any time via the **Profile** link in the navigation (`/profile`); profile edits are not phase-restricted. See UC-13.
 
 ## UC-2: Student browses postings
 
@@ -125,3 +125,15 @@ Actors: **Student**, **Company**, **Admin**
 **Flow:**
 1. Admin views read-only tables of all student rankings, all company rankings, and all shortlist statuses — regardless of current phase.
 **Postcondition:** Admin can narrate/debug the state of the round at any point, including during a live demo.
+
+## UC-13: Student or company edits their profile
+
+**Actor:** Student or Company
+**Precondition:** User is logged in and has completed onboarding.
+**Flow:**
+1. User opens **Profile** in the navigation (`/profile`).
+2. System shows the current profile, pre-filled, with the account email read-only.
+3. User changes one or more fields and selects "Save changes".
+**Postcondition:** The `students` or `companies` row is updated (`PATCH /api/students/me` or `/api/companies/me`) and the page shows the saved values.
+**Exception:** If the server returns field validation errors, they are shown next to the fields and nothing is lost from the form. "Discard" resets the form to the last saved values.
+**Note:** Allowed in every round phase. A student's changes are visible to companies that review applicants afterwards.

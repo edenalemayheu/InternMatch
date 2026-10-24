@@ -14,11 +14,7 @@ import Button   from '../components/ui/Button.jsx';
 import Input    from '../components/ui/Input.jsx';
 import Select   from '../components/ui/Select.jsx';
 import TagInput from '../components/ui/TagInput.jsx';
-
-const DEPTS  = ['Computer Science','Data Science','Business','Engineering','Environmental Science','Finance','Education','Design','Other'];
-const YEARS  = ['1st year','2nd year','3rd year','4th year','Postgraduate','Other'];
-const AVAIL  = ['Full-time summer','Part-time (20h/week)','Remote only','Flexible'];
-const INDUSTRIES = ['Software','Data & Analytics','Cloud Infrastructure','Sustainability Tech','Fintech','Healthcare Tech','EdTech','Consulting','Other'];
+import { DEPTS, YEARS, AVAIL, INDUSTRIES } from '../lib/profileOptions.js';
 
 export default function Onboarding() {
   const { user, refreshUser } = useAuth();

@@ -16,6 +16,7 @@ InternMatch/
 │   │   │   ├── Signup.jsx
 │   │   │   ├── Login.jsx
 │   │   │   ├── Onboarding.jsx
+│   │   │   ├── Profile.jsx          # edit own profile (student or company)
 │   │   │   ├── student/
 │   │   │   │   ├── Dashboard.jsx
 │   │   │   │   ├── Postings.jsx
@@ -29,7 +30,7 @@ InternMatch/
 │   │   │   └── admin/
 │   │   │       └── AdminPanel.jsx
 │   │   ├── hooks/                   # useAuth, useRound, useNotifications
-│   │   ├── lib/                     # supabaseClient.js, apiClient.js
+│   │   ├── lib/                     # supabaseClient.js, apiClient.js, profileOptions.js (shared dropdown options)
 │   │   ├── styles/                  # tokens.css (design tokens from ui-foundation-spec.md), globals.css
 │   │   ├── App.jsx
 │   │   └── main.jsx

@@ -11,12 +11,14 @@ const STUDENT_LINKS = [
   { to: '/postings',   label: 'Browse' },
   { to: '/rank',       label: 'My Ranking' },
   { to: '/reveal',     label: 'Results' },
+  { to: '/profile',    label: 'Profile' },
 ];
 
 const COMPANY_LINKS = [
   { to: '/dashboard',          label: 'Dashboard' },
   { to: '/company/postings',   label: 'Postings' },
   { to: '/reveal',             label: 'Results' },
+  { to: '/profile',            label: 'Profile' },
 ];
 
 const ADMIN_LINKS = [
