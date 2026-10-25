@@ -23,7 +23,6 @@ import { AuthProvider, useAuth }   from './context/AuthContext.jsx';
 import { RoundProvider }           from './context/RoundContext.jsx';
 import { ToastProvider }           from './context/ToastContext.jsx';
 import AppNavbar from './components/AppNavbar.jsx';
-import DemoPanel from './components/DemoPanel.jsx';
 import Spinner   from './components/ui/Spinner.jsx';
 
 // Landing stays as-is
@@ -199,8 +198,6 @@ function InnerApp() {
         </Routes>
       </Suspense>
 
-      {/* Demo panel — shown after login */}
-      <DemoPanelIfLoggedIn />
     </>
   );
 }
@@ -211,12 +208,6 @@ function RoleBasedDashboard() {
   if (user.is_admin) return <Navigate to="/admin" replace />;
   if (user.role === 'company') return <CompanyDashboard />;
   return <StudentDashboard />;
-}
-
-function DemoPanelIfLoggedIn() {
-  const { user } = useAuth();
-  if (!user) return null;
-  return <DemoPanel />;
 }
 
 export default function App() {

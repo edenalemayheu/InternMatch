@@ -1,7 +1,7 @@
 /**
- * mockDb.js — In-memory database backed by localStorage.
+ * Test fixture database backed by jsdom localStorage.
  * All reads/writes go through this module.
- * When VITE_USE_MOCK=true, apiClient.js imports from here instead of fetch.
+ * The API client loads this module only in Vitest test mode.
  *
  * State persists in localStorage under key 'internmatch_mock_db'.
  * Call resetDb() to restore seed state.
@@ -271,3 +271,4 @@ export function loadPreset(preset) {
   save(db);
   return db;
 }
+

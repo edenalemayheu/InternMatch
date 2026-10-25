@@ -6,7 +6,7 @@ const execFileAsync=promisify(execFile);
 import { supabase } from '../db/supabaseClient.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
-import { runMatching } from '../matching/matchingEngine.js';
+import { runMatching } from '../services/matchingEngine.js';
 const router=Router();router.use(requireAuth,requireAdmin);
 const PHASES=['ranking_open','ranking_locked','shortlisting','shortlist_locked','interviewing','company_ranking','company_locked','matched','revealed'];
 async function current(){const {data,error}=await supabase.from('rounds').select('*').order('created_at',{ascending:false}).limit(1).maybeSingle();if(error)throw error;return data;}

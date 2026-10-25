@@ -1,7 +1,6 @@
 /**
  * Login — /login
- * Email + password, demo accounts box (VITE_USE_MOCK only),
- * routes by role after login per spec.
+ * Email + password, routes by role after login per spec.
  */
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -11,19 +10,6 @@ import Card    from '../components/ui/Card.jsx';
 import Button  from '../components/ui/Button.jsx';
 import Input   from '../components/ui/Input.jsx';
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
-
-const DEMO_ACCOUNTS = [
-  { label: 'Admin',       email: 'admin@internmatch.demo',    password: 'Admin123!',   role: 'Admin' },
-  { label: 'Student A',   email: 'student1@internmatch.demo', password: 'Student123!', role: 'Student (has ranking)' },
-  { label: 'Student B',   email: 'student2@internmatch.demo', password: 'Student123!', role: 'Student (no ranking)' },
-  { label: 'Student C',   email: 'student3@internmatch.demo', password: 'Student123!', role: 'Student (unmatched)' },
-  { label: 'Student D',   email: 'newstudent@internmatch.demo', password: 'Student123!', role: 'Student (new, no profile)' },
-  { label: 'Company A',   email: 'company1@internmatch.demo', password: 'Company123!', role: 'Company (postings)' },
-  { label: 'Company B',   email: 'company2@internmatch.demo', password: 'Company123!', role: 'Company' },
-  { label: 'Company C',   email: 'newcompany@internmatch.demo', password: 'Company123!', role: 'Company (new, no profile)' },
-];
-
 export default function Login() {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
@@ -32,11 +18,6 @@ export default function Login() {
   const { login, sessionExpired } = useAuth();
   const toast      = useToast();
   const navigate   = useNavigate();
-
-  function fillDemo(acc) {
-    setEmail(acc.email);
-    setPassword(acc.password);
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -100,32 +81,6 @@ export default function Login() {
           </form>
         </Card>
 
-        {USE_MOCK && (
-          <Card style={{ marginTop: 'var(--space-4)' }}>
-            <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-neutral-600)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-3)' }}>
-              Demo Accounts (click to autofill)
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-              {DEMO_ACCOUNTS.map(acc => (
-                <div key={acc.email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-2)', borderRadius: 6, cursor: 'pointer', transition: 'background 150ms' }}
-                  onClick={() => fillDemo(acc)}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--color-neutral-100)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <div>
-                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-neutral-800)' }}>{acc.label}</span>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-neutral-600)', marginLeft: 8 }}>{acc.role}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setEmail(acc.email); setPassword(acc.password); setTimeout(() => document.querySelector('form').requestSubmit(), 50); }}
-                    style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary-600)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: '2px 8px' }}>
-                    Sign in →
-                  </button>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
       </div>
     </div>
   );

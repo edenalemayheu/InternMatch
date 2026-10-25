@@ -1,15 +1,13 @@
 /**
  * apiClient.js — Single API surface for the entire frontend.
  *
- * When VITE_USE_MOCK=true: all functions use the local mock DB.
- * When VITE_USE_MOCK=false: all functions call the real /api with fetch.
+ * The browser app always calls the backend. Test mode can opt into an in-memory
+ * fixture so service-level behavior stays testable without network access.
  *
  * Components NEVER import mock files directly.
- * To connect to the real backend: set VITE_USE_MOCK=false in .env
- * and fill in the fetch stubs below (URL + method are already correct).
  */
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
+const USE_MOCK = import.meta.env.MODE === 'test' && import.meta.env.VITE_USE_MOCK === 'true';
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 // ── Simulated latency for mock (makes loading states visible) ─────────────────
@@ -111,18 +109,25 @@ async function apiFetch(method, path, body) {
   }
 }
 
-// ── Mock imports (only evaluated when USE_MOCK=true, via dynamic structure) ───
-// Lazy import: the mock only loads when USE_MOCK is true.
+// ── Test fixture imports (excluded from browser app builds) ───
+// Lazy import: fixture modules load only in test mode.
 let _mock = null;
 async function getMock() {
   if (_mock) return _mock;
   const [{ getDb, updateDb, resetDb, newId, getSession, setSession, clearSession,
            PHASE_SEQUENCE, phaseIndex, phaseAtLeast, applyPhaseTransitionSideEffects, loadPreset },
          { runMatching }] =
-    await Promise.all([import('./mock/mockDb.js'), import('./mock/mockMatching.js')]);
+    await Promise.all([import('../../tests/mock/mockDb.js'), import('../../tests/mock/mockMatching.js')]);
   _mock = { getDb, updateDb, resetDb, newId, getSession, setSession, clearSession,
             PHASE_SEQUENCE, phaseIndex, phaseAtLeast, applyPhaseTransitionSideEffects, loadPreset, runMatching };
   return _mock;
+}
+
+async function requireMockAdmin() {
+  const { getSession } = await getMock();
+  const user = getSession();
+  if (!user) throw Object.assign(new Error('Not authenticated'), { status: 401 });
+  if (!user.is_admin) throw Object.assign(new Error('Admin only'), { status: 403 });
 }
 
 /**
@@ -471,6 +476,7 @@ export async function saveRanking(orderedPostingIds) {
   const { getDb, updateDb, newId, getSession, phaseAtLeast } = await getMock();
   const db = getDb();
   const session = getSession();
+  if (!session) throw apiError(401, 'Not authenticated');
   const student = session?.role === 'student' ? db.students.find(s => s.user_id === session.id) : null;
   if (!student) throw apiError(403, 'Forbidden');
   if (db.round.phase !== 'ranking_open') throw wrongPhase(db);
@@ -833,6 +839,7 @@ export async function getMyMatches() {
 export async function adminListStudents() {
   if (!USE_MOCK) return apiFetch('GET', '/admin/students');
   await delay();
+  await requireMockAdmin();
   const { getDb } = await getMock();
   return { students: getDb().students };
 }
@@ -840,6 +847,7 @@ export async function adminListStudents() {
 export async function adminListCompanies() {
   if (!USE_MOCK) return apiFetch('GET', '/admin/companies');
   await delay();
+  await requireMockAdmin();
   const { getDb } = await getMock();
   return { companies: getDb().companies };
 }
@@ -847,6 +855,7 @@ export async function adminListCompanies() {
 export async function adminListRankings() {
   if (!USE_MOCK) return apiFetch('GET', '/admin/rankings');
   await delay();
+  await requireMockAdmin();
   const { getDb } = await getMock();
   const db = getDb();
   return { rankings: db.studentRankings.filter(r => r.round_id === db.round.id) };
@@ -855,6 +864,7 @@ export async function adminListRankings() {
 export async function adminListCompanyRankings() {
   if (!USE_MOCK) return apiFetch('GET', '/admin/company-rankings');
   await delay();
+  await requireMockAdmin();
   const { getDb } = await getMock();
   const db = getDb();
   return { rankings: db.companyRankings.filter(r => r.round_id === db.round.id) };
@@ -863,6 +873,7 @@ export async function adminListCompanyRankings() {
 export async function adminListShortlists() {
   if (!USE_MOCK) return apiFetch('GET', '/admin/shortlists');
   await delay();
+  await requireMockAdmin();
   const { getDb } = await getMock();
   const db = getDb();
   return { shortlists: db.shortlists.filter(s => s.round_id === db.round.id) };
@@ -873,6 +884,7 @@ export async function advancePhase() {
   if (!USE_MOCK) return apiFetch('POST', '/admin/rounds/advance-phase');
 
   await delay();
+  await requireMockAdmin();
   const { getDb, updateDb, PHASE_SEQUENCE, applyPhaseTransitionSideEffects } = await getMock();
   const db = getDb();
   const currentIdx = PHASE_SEQUENCE.indexOf(db.round.phase);
@@ -895,8 +907,10 @@ export async function runMatchingNow() {
   if (!USE_MOCK) return apiFetch('POST', '/admin/rounds/run-matching');
 
   await delay(400);
+  await requireMockAdmin();
   const { getDb, updateDb, runMatching } = await getMock();
   const db = getDb();
+  if (!['company_locked', 'matched'].includes(db.round.phase)) throw wrongPhase(db);
 
   const result = runMatching({
     studentRankings: db.studentRankings.filter(sr => sr.round_id === db.round.id),
@@ -948,6 +962,7 @@ export async function resetRound() {
   if (!USE_MOCK) return apiFetch('POST', '/admin/rounds/reset');
 
   await delay();
+  await requireMockAdmin();
   const { updateDb } = await getMock();
   updateDb(db => {
     db.studentRankings = db.studentRankings.filter(r => r.round_id !== db.round.id);
@@ -967,6 +982,7 @@ export async function seed() {
   if (!USE_MOCK) return apiFetch('POST', '/admin/seed');
 
   await delay();
+  await requireMockAdmin();
   const { resetDb } = await getMock();
   resetDb();
   return { ok: true };
