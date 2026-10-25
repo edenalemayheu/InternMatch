@@ -43,7 +43,10 @@ router.post('/auth/signup', async (req, res, next) => {
 
 router.post('/auth/login', async (req, res, next) => {
   const { email, password } = req.body || {};
-  if (typeof email !== 'string' || typeof password !== 'string') return validation(res, { email: 'Email and password are required' });
+  const fields = {};
+  if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email)) fields.email = 'Enter a valid email';
+  if (typeof password !== 'string' || !password) fields.password = 'Password is required';
+  if (Object.keys(fields).length) return validation(res, fields);
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.user || !data.session) return res.status(401).json({ error: 'Invalid email or password' });

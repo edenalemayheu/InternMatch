@@ -1,6 +1,6 @@
 # InternMatch completion progress
 
-**NEXT STEP:** Add invalid-input validation tests for every endpoint that accepts user input, including malformed path/query inputs where applicable.
+**NEXT STEP:** Complete Phase 6 readiness (environment validation, strict env-driven CORS, deploy guide) and strengthen the contract checker so it rejects missing or stub handlers.
 
 ## Initial repository summary (before implementation)
 - The repository is a React/Vite frontend, Express backend, and Supabase Postgres/Auth project. The root README and package scripts describe separate frontend/backend development.
@@ -39,4 +39,10 @@
 ## Unit 1: requested round and posting endpoints
 - Added the three previously missing endpoints and UI/API client entry points.
 - Verified: frontend 78 tests, backend 11 tests, contract reports 41 documented endpoints, 40 frontend calls (health is intentionally not used by the UI), and 41 backend routes.
+- Commit: pending.
+
+## Unit 2: input validation matrix
+- Added reusable UUID path validation on posting, shortlist, notes, and notification routes; validated ranking and company-ranking IDs, login email/password, and the postings `all` query parameter.
+- Added backend request assertions for invalid body, query, and path inputs on every endpoint that accepts user input. Paths now return the documented 400 `{ error, fields }` envelope.
+- Backend suite: 11 tests passed. Contract checker: 41 documented, 40 frontend calls, 41 backend routes.
 - Commit: pending.
