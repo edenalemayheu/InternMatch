@@ -11,6 +11,7 @@ const router=Router();router.use(requireAuth,requireAdmin);
 const PHASES=['ranking_open','ranking_locked','shortlisting','shortlist_locked','interviewing','company_ranking','company_locked','matched','revealed'];
 async function current(){const {data,error}=await supabase.from('rounds').select('*').order('created_at',{ascending:false}).limit(1).maybeSingle();if(error)throw error;return data;}
 function list(table,key){return async(req,res,next)=>{try{const r=await current();let q=supabase.from(table).select('*');if(r&&['student_rankings','company_rankings','shortlists'].includes(table))q=q.eq('round_id',r.id);const {data,error}=await q;if(error)throw error;return res.json({[key]:data||[]});}catch(e){next(e);}};}
+router.post('/rounds',async(req,res,next)=>{const label=req.body?.label;if(typeof label!=='string'||!label.trim()||label.trim().length>120)return res.status(400).json({error:'Validation failed',fields:{label:'Enter a round name up to 120 characters'}});try{const {data,error}=await supabase.from('rounds').insert({label:label.trim(),phase:'ranking_open'}).select('*').single();if(error)throw error;return res.status(201).json({round:data});}catch(e){next(e);}});
 router.get('/students',list('students','students'));
 router.get('/companies',list('companies','companies'));
 router.get('/rankings',list('student_rankings','rankings'));

@@ -6,7 +6,7 @@ export function createFakeSupabase({tables={},tokens={},accounts={}}={}){
  const tokenUsers=new Map(Object.entries(tokens));
  for(const table of ['users','students','companies','rounds','postings','student_rankings','shortlists','company_rankings','interview_notes','notifications','matches','match_runs'])state[table] ||= [];
  class Query{
-  constructor(table){this.table=table;this.op='select';this.filters=[];this.payload=null;this.conflict=null;this.returning=false;this.limitCount=null;this.selection='*';}
+  constructor(table){this.table=table;this.op='select';this.filters=[];this.payload=null;this.conflict=null;this.returning=false;this.limitCount=null;this.selection='*';this.ordering=null;}
   select(selection='*'){this.returning=true;this.selection=selection;return this;}
   insert(payload){this.op='insert';this.payload=payload;return this;}
   update(payload){this.op='update';this.payload=payload;return this;}
@@ -14,7 +14,7 @@ export function createFakeSupabase({tables={},tokens={},accounts={}}={}){
   delete(){this.op='delete';return this;}
   eq(key,value){this.filters.push(row=>row[key]===value);return this;}
   in(key,values){this.filters.push(row=>values.includes(row[key]));return this;}
-  order(){return this;}
+  order(column,options={}){this.ordering={column,ascending:options.ascending!==false};return this;}
   limit(n){this.limitCount=n;return this;}
   matches(row){return this.filters.every(fn=>fn(row));}
   async execute(){let rows=state[this.table];if(!rows)return {data:null,error:{message:`Unknown table ${this.table}`,code:'42P01'}};
@@ -24,6 +24,7 @@ export function createFakeSupabase({tables={},tokens={},accounts={}}={}){
    else if(this.op==='update'){result=rows.filter(row=>this.matches(row));for(const row of result)Object.assign(row,this.payload);}
    else if(this.op==='delete'){result=rows.filter(row=>this.matches(row));state[this.table]=rows.filter(row=>!this.matches(row));}
    else result=rows.filter(row=>this.matches(row));
+   if(this.ordering){const {column,ascending}=this.ordering;result.sort((a,b)=>{const av=a[column],bv=b[column];const cmp=av===bv?0:av===undefined?1:bv===undefined?-1:av<bv?-1:1;return ascending?cmp:-cmp;});}
    if(this.limitCount!==null)result=result.slice(0,this.limitCount);
    if(this.selection.includes('companies('))result=result.map(row=>{
     if(this.table==='postings'){const company=state.companies.find(c=>c.id===row.company_id);return {...row,companies:company?{...company}:null};}

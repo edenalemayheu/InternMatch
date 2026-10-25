@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, Ban } from 'lucide-react';
 import { useRound, phaseAtLeast } from '../../context/RoundContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import * as api from '../../lib/apiClient.js';
@@ -92,6 +92,16 @@ export default function CompanyPostings() {
     finally { setSaving(false); }
   }
 
+  async function closePosting(posting) {
+    setSaving(true);
+    try {
+      await api.closePosting(posting.id);
+      toast.success('Posting closed.');
+      load();
+    } catch (err) { api.showError(toast, err, 'Could not close the posting.'); }
+    finally { setSaving(false); }
+  }
+
   const phase = round?.phase;
   // Students rank postings, so postings can only change while ranking is open.
   const canEdit = phase === 'ranking_open';
@@ -120,6 +130,7 @@ export default function CompanyPostings() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
                 <div style={{ flex: 1 }}>
                   <h3 style={{ fontWeight: 600, color: 'var(--color-neutral-900)', marginBottom: 'var(--space-1)' }}>{p.title}</h3>
+                  {p.is_open === false && <Badge variant="default">Closed</Badge>}
                   <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-neutral-600)', marginBottom: 'var(--space-2)' }}>
                     {p.required_department || 'Any department'} · Capacity: {p.capacity}
                   </p>
@@ -128,6 +139,7 @@ export default function CompanyPostings() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
+                  {p.is_open !== false && <button onClick={() => closePosting(p)} disabled={!canEdit || saving} title="Close posting" aria-label={`Close ${p.title}`} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-neutral-200)', background: 'none', cursor: 'pointer', color: 'var(--color-neutral-600)' }}><Ban size={14} /></button>}
                   {phaseAtLeast(phase, 'ranking_locked') && (
                     <Button as={Link} to={`/company/applicants/${p.id}`} variant="secondary" style={{ fontSize: 'var(--text-sm)' }}>
                       <Users size={14} /> Applicants

@@ -39,7 +39,7 @@ Base URL: `/api`. Every response is JSON.
 
 **company** `{ id, user_id, company_name, industry, contact_person, logo_url: string|null, created_at }`
 
-**posting** `{ id, company_id, round_id, title, required_department, required_skills: string[], capacity, created_at, company_name }`. `required_department` is `""` for "any department". `capacity` is an integer from 1 to 10. `company_name` is joined in by the server.
+**posting** `{ id, company_id, round_id, title, required_department, required_skills: string[], capacity, is_open: boolean, created_at, company_name }`. `required_department` is `""` for "any department". `capacity` is an integer from 1 to 10. `company_name` is joined in by the server.
 
 **ranking** (student) `{ id, student_id, round_id, ordered_posting_ids: string[], locked_at: string|null, created_at }`. Index 0 is the top choice.
 
@@ -85,6 +85,9 @@ Auth: any. Invalidates the session on the server where possible. `200` `{ ok: tr
 
 ### `GET /api/rounds/current`
 Public. `200` `{ round }` for the active round (the newest round). `404` if no round exists.
+
+### `POST /api/admin/rounds`
+Auth: admin. Body `{ label }`, where `label` is a non-empty string up to 120 characters. Creates a new round in `ranking_open` and makes it the current round. `201` `{ round }`; invalid labels return `400` with `fields.label`.
 
 ---
 
@@ -145,6 +148,9 @@ Auth: company with a profile. Body `{ title, required_department, required_skill
 ### `GET /api/postings/mine`
 Auth: company. `200` `{ postings }` owned by the caller in the current round.
 
+### `GET /api/postings/:id`
+Public. `200` `{ posting }` with the contract posting fields and `is_open`; `404` if it does not exist. Closed postings remain addressable by ID but are omitted from student browse results.
+
 ### `PATCH /api/postings/:id`
 Auth: company that owns the posting. Body: any subset of `{ title, required_department, required_skills, capacity }`.
 - **Phase: `ranking_open` only**, otherwise `403` with `currentPhase`. Students rank postings, so a posting must not change afterwards.
@@ -152,6 +158,9 @@ Auth: company that owns the posting. Body: any subset of `{ title, required_depa
 
 ### `DELETE /api/postings/:id`
 Auth: company that owns the posting. **Phase: `ranking_open` only.** Also removes this posting from every student ranking and deletes its shortlists and company ranking. `200` `{ ok: true }`. `404` as above.
+
+### `POST /api/postings/:id/close`
+Auth: owning company. **Phase: `ranking_open` only.** Closes the posting, removes it from existing student rankings, and removes its shortlist, company ranking and interview notes. Idempotent. `200` `{ ok: true }`; `404` if missing or not owned; `403` with `currentPhase` outside `ranking_open`.
 
 ### `GET /api/postings/:id/applicants`
 Auth: company that owns the posting. **Allowed at or past `ranking_locked`**, otherwise `403` with `currentPhase`.

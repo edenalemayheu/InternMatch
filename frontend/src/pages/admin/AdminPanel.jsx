@@ -3,7 +3,7 @@
  * Phase stepper, force advance, run matching, reset round, data tables.
  */
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Plus } from 'lucide-react';
 import { useRound, PHASE_LABELS, PHASE_SEQUENCE } from '../../context/RoundContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import * as api from '../../lib/apiClient.js';
@@ -27,6 +27,7 @@ export default function AdminPanel() {
   const [tab,         setTab]           = useState('rankings');
   const [tabData,     setTabData]       = useState({});
   const [tabLoading,  setTabLoading]    = useState(false);
+  const [creatingRound, setCreatingRound] = useState(false);
 
   async function loadTab(t) {
     setTabLoading(true);
@@ -52,6 +53,19 @@ export default function AdminPanel() {
       toast.success(`Phase advanced to: ${PHASE_LABELS[r.phase]}`);
     } catch (err) { toast.error(err.message); }
     setAdvancing(false);
+  }
+
+  async function createRound() {
+    const label = window.prompt('Name for the new round');
+    if (label === null) return;
+    setCreatingRound(true);
+    try {
+      await api.createRound(label);
+      setMatchResult(null);
+      await refresh();
+      toast.success('New round created.');
+    } catch (err) { toast.error(err.message); }
+    finally { setCreatingRound(false); }
   }
 
   async function runMatching() {
@@ -84,7 +98,10 @@ export default function AdminPanel() {
 
   return (
     <div>
-      <h1 className="page-title">Admin Panel</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+        <h1 className="page-title">Admin Panel</h1>
+        <Button onClick={createRound} loading={creatingRound}><Plus size={16} /> Create round</Button>
+      </div>
       <p className="page-subtitle">Round control — {round?.label}</p>
 
       {/* Phase stepper */}

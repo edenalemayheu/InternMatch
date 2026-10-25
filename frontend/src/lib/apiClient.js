@@ -291,6 +291,18 @@ export async function getCurrentRound() {
   return { round: getDb().round };
 }
 
+/** POST /api/admin/rounds — create a round and make it current. */
+export async function createRound(label) {
+  if (!USE_MOCK) return apiFetch('POST', '/admin/rounds', { label });
+  await delay();
+  await requireMockAdmin();
+  if (typeof label !== 'string' || !label.trim() || label.trim().length > 120) throw fieldErrors({ label: 'Enter a round name up to 120 characters' });
+  const { updateDb, getDb, newId } = await getMock();
+  const round = { id: newId('round'), label: label.trim(), phase: 'ranking_open', created_at: new Date().toISOString() };
+  updateDb(db => { db.round = round; db.studentRankings = []; db.companyRankings = []; db.shortlists = []; db.matches = []; db.interviewNotes = []; db.notifications = []; return db; });
+  return { round: getDb().round };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // STUDENTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,7 +376,7 @@ export async function getPostings({ all = false } = {}) {
   const { getDb, getSession } = await getMock();
   const db = getDb();
   const session = getSession();
-  const postings = db.postings.filter(p => p.round_id === db.round.id).map(p => withCompanyName(db, p));
+  const postings = db.postings.filter(p => p.round_id === db.round.id && p.is_open !== false).map(p => withCompanyName(db, { is_open: true, ...p }));
 
   // all=true (or nobody to filter for): `postings` is every posting
   if (all || !session) return { postings, allPostings: postings };
@@ -377,6 +389,17 @@ export async function getPostings({ all = false } = {}) {
     (p.required_skills || []).some(sk => (student.skills || []).includes(sk))
   );
   return { postings: relevant.length > 0 ? relevant : postings, allPostings: postings };
+}
+
+/** GET /api/postings/:id — public posting detail. */
+export async function getPosting(postingId) {
+  if (!USE_MOCK) return apiFetch('GET', `/postings/${postingId}`);
+  await delay();
+  const { getDb } = await getMock();
+  const db = getDb();
+  const posting = db.postings.find(p => p.id === postingId);
+  if (!posting) throw Object.assign(new Error('Posting not found'), { status: 404 });
+  return { posting: withCompanyName(db, { is_open: true, ...posting }) };
 }
 
 /** GET /api/postings/mine — company view */
@@ -416,6 +439,7 @@ export async function createPosting(data) {
     required_department: input.required_department ?? '',
     required_skills: input.required_skills ?? [],
     capacity: input.capacity,
+    is_open: true,
     created_at: new Date().toISOString(),
   };
   updateDb(d => { d.postings.push(posting); return d; });
@@ -439,6 +463,28 @@ export async function updatePosting(postingId, data) {
   if (typeof changes.title === 'string') changes.title = changes.title.trim();
 
   updateDb(d => { Object.assign(d.postings.find(p => p.id === postingId), changes); return d; });
+  return { ok: true };
+}
+
+/** POST /api/postings/:id/close — close a posting during ranking_open. */
+export async function closePosting(postingId) {
+  if (!USE_MOCK) return apiFetch('POST', `/postings/${postingId}/close`);
+  await delay();
+  const { getDb, updateDb, getSession } = await getMock();
+  const db = getDb();
+  const company = requireCompany(db, getSession());
+  const posting = ownPosting(db, company, postingId);
+  if (db.round.phase !== 'ranking_open') throw wrongPhase(db);
+  if (posting.is_open === false) return { ok: true };
+  updateDb(d => {
+    const target = d.postings.find(p => p.id === postingId);
+    target.is_open = false;
+    for (const ranking of d.studentRankings) ranking.ordered_posting_ids = ranking.ordered_posting_ids.filter(id => id !== postingId);
+    d.shortlists = d.shortlists.filter(row => row.posting_id !== postingId);
+    d.companyRankings = d.companyRankings.filter(row => row.posting_id !== postingId);
+    d.interviewNotes = d.interviewNotes.filter(row => row.posting_id !== postingId);
+    return d;
+  });
   return { ok: true };
 }
 
@@ -481,7 +527,7 @@ export async function saveRanking(orderedPostingIds) {
   if (!student) throw apiError(403, 'Forbidden');
   if (db.round.phase !== 'ranking_open') throw wrongPhase(db);
 
-  const known = new Set(db.postings.filter(p => p.round_id === db.round.id).map(p => p.id));
+  const known = new Set(db.postings.filter(p => p.round_id === db.round.id && p.is_open !== false).map(p => p.id));
   if (!Array.isArray(orderedPostingIds) || orderedPostingIds.some(id => typeof id !== 'string') ||
       new Set(orderedPostingIds).size !== orderedPostingIds.length || orderedPostingIds.some(id => !known.has(id))) {
     throw fieldErrors({ ordered_posting_ids: 'Must be a list of unique postings from this round.' });

@@ -1,5 +1,7 @@
 # InternMatch completion progress
 
+**NEXT STEP:** Add invalid-input validation tests for every endpoint that accepts user input, including malformed path/query inputs where applicable.
+
 ## Initial repository summary (before implementation)
 - The repository is a React/Vite frontend, Express backend, and Supabase Postgres/Auth project. The root README and package scripts describe separate frontend/backend development.
 - `docs/api/endpoints.md` is the API contract. `scripts/check-contract.mjs` compares contract paths with frontend calls and backend route declarations.
@@ -28,10 +30,13 @@
 - Real Supabase connectivity/schema application could not be confirmed. The real E2E script was not run against Supabase. The fake-database integration test exercises the complete request flow without external credentials.
 
 ## Contract discrepancies and remaining manual steps
-1. The contract has authenticated `GET /api/postings` and no `GET /api/postings/:id`, although the brief asks for public listing and a single-posting route. Implementation follows the contract.
-2. The contract has no admin create-round endpoint; it has current-round lookup and one-step phase advance. The seed script creates a demo round only when none exists.
-3. Notification types in the contract are `shortlisted`, `matched`, and `not_matched`; the brief also asks for phase-change/results-available notifications. Implementation follows the contract enum.
-4. The brief asks to close postings, but the contract/schema has no closed status or close endpoint. Posting edits/deletes are limited to `ranking_open` as documented.
-5. The contract allows admin matching regardless of phase; the brief restricts matching to locked rounds and refuses re-runs after reveal. Implementation follows the brief.
-6. Success coverage spans the complete round workflow and profile/auth routes. The missing-auth and wrong-role checks cover all protected and role-restricted routes, respectively. Invalid-body validation cases are not exhaustive across all endpoints, so a full per-endpoint validation matrix remains a test-coverage gap.
-7. Applying migrations and running the real Supabase round require the user's Supabase project. Numbered copy/paste steps and commands are in `MANUAL_STEPS.md`.
+1. Added `POST /api/admin/rounds`, public `GET /api/postings/:id`, and owner-only `POST /api/postings/:id/close` across docs, checker-discovered frontend calls, backend routes, API client, and UI. `postings.is_open` is included in `4b_postings_rankings.sql` with an idempotent alter for existing installations.
+2. Notification types in the contract are `shortlisted`, `matched`, and `not_matched`; the brief also asks for phase-change/results-available notifications. Implementation follows the contract enum.
+3. The contract allows admin matching regardless of phase; the brief restricts matching to locked rounds and refuses re-runs after reveal. Implementation follows the brief.
+4. Success coverage includes the new route workflows; the missing-token and wrong-role matrix covers protected endpoints. Validation failures are not yet tested for every endpoint accepting input. Next step is the validation matrix.
+5. Applying migrations and running the real Supabase round require the user's Supabase project. Numbered copy/paste steps and commands are in `MANUAL_STEPS.md`.
+
+## Unit 1: requested round and posting endpoints
+- Added the three previously missing endpoints and UI/API client entry points.
+- Verified: frontend 78 tests, backend 11 tests, contract reports 41 documented endpoints, 40 frontend calls (health is intentionally not used by the UI), and 41 backend routes.
+- Commit: pending.
