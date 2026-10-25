@@ -12,7 +12,7 @@
     "build": "npm run build --prefix frontend",
     "e2e": "node scripts/e2e-round.js",
     "lint": "npm run lint --prefix frontend",
-    "test": "npm test --prefix frontend && npm test --prefix backend"
+    "test": "node --test scripts/check-contract.test.mjs && npm test --prefix frontend && npm test --prefix backend"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

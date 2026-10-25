@@ -1,6 +1,6 @@
 # InternMatch completion progress
 
-**NEXT STEP:** Strengthen the contract checker so it rejects missing, unhandled, or stub endpoints, then run the complete final suite and production build.
+**NEXT STEP:** On a fresh Supabase project, apply the SQL migrations and run `npm run e2e` as listed in `MANUAL_STEPS.md`.
 
 ## Initial repository summary (before implementation)
 - The repository is a React/Vite frontend, Express backend, and Supabase Postgres/Auth project. The root README and package scripts describe separate frontend/backend development.
@@ -13,8 +13,8 @@
 - Added SQL migrations for remaining contract resources and frontend API URL configuration; removed the unused frontend Supabase package.
 - Commit: `204411c Phase 1: contract-driven backend foundations`.
 
-## Remaining phases completed in the working tree
-- Implemented handlers for all 38 contract routes, phase-controlled rankings and posting changes, shortlist/contact visibility, company rankings and notes, notifications, matching persistence and result visibility, admin operations, and demo seeding.
+## Remaining phases completed
+- Implemented handlers for all 41 contract routes, phase-controlled rankings and posting changes, shortlist/contact visibility, company rankings and notes, notifications, matching persistence and result visibility, admin operations, and demo seeding.
 - Added `scripts/e2e-round.js` for a real running backend and an in-memory Supabase workflow integration test covering the contract flow from auth through reveal/reset.
 - Removed the unused frontend localStorage/mock data layer and confirmed dead pages/components were not routed or imported. Replaced old data-layer tests with 22 APIClient workflow tests. The frontend's 14 matching tests remain.
 - Moved mock fixtures under `frontend/tests/mock/` and constrained APIClient mock mode to Vitest test builds. Production build contains no mock database/matching chunks. Runtime browser calls use `VITE_API_URL` or the local `/api` proxy.
@@ -22,30 +22,29 @@
 - `.gitignore` excludes `backend/.env`; `backend/.env.example` lists configuration names only. The Supabase service-role key is read only by backend code.
 
 ## Verification
-- Contract checker: 38 documented endpoints, 37 frontend calls, 38 backend route declarations. The one documented route not called by the UI is `GET /api/health`.
-- Frontend: 77 tests passed across 6 files, including 14 matching tests and 22 APIClient workflow tests. Lint passed with zero rejected emoji.
-- Backend: 11 tests passed (6 matching tests, 4 profile route tests, and 1 in-memory full workflow integration test). The workflow integration test verifies missing-token rejection on every protected route and wrong-role rejection on every role-restricted route.
+- Contract checker: 41 documented endpoints, 40 frontend calls, 41 backend routes with real callbacks. It runs the in-memory HTTP route tests; all 5 route integration cases pass. The one documented route not called by the UI is `GET /api/health`.
+- Repository test command: 4 checker tests, 78 frontend tests across 6 files, and 14 backend tests all pass. This includes the 14 matching tests, 23 APIClient workflow tests, route validation cases, environment checks, and CORS allow/deny checks. Lint passed with zero rejected emoji.
 - Production frontend build passed (1,568 modules transformed).
-- `backend/.env` is ignored. `git diff --check` identified trailing blank lines in edited files; clean these before commit.
+- `backend/.env` is ignored and `git diff --check` is clean.
 - Real Supabase connectivity/schema application could not be confirmed. The real E2E script was not run against Supabase. The fake-database integration test exercises the complete request flow without external credentials.
 
 ## Contract discrepancies and remaining manual steps
 1. Added `POST /api/admin/rounds`, public `GET /api/postings/:id`, and owner-only `POST /api/postings/:id/close` across docs, checker-discovered frontend calls, backend routes, API client, and UI. `postings.is_open` is included in `4b_postings_rankings.sql` with an idempotent alter for existing installations.
 2. Notification types in the contract are `shortlisted`, `matched`, and `not_matched`; the brief also asks for phase-change/results-available notifications. Implementation follows the contract enum.
 3. The contract allows admin matching regardless of phase; the brief restricts matching to locked rounds and refuses re-runs after reveal. Implementation follows the brief.
-4. Success coverage includes the new route workflows; the missing-token and wrong-role matrix covers protected endpoints. Validation failures are not yet tested for every endpoint accepting input. Next step is the validation matrix.
+4. Validation tests cover invalid body, query, and path inputs on all endpoints that accept input. Protected endpoints have missing-auth checks and role-restricted endpoints have wrong-role checks.
 5. Applying migrations and running the real Supabase round require the user's Supabase project. Numbered copy/paste steps and commands are in `MANUAL_STEPS.md`.
 
 ## Unit 1: requested round and posting endpoints
 - Added the three previously missing endpoints and UI/API client entry points.
 - Verified: frontend 78 tests, backend 11 tests, contract reports 41 documented endpoints, 40 frontend calls (health is intentionally not used by the UI), and 41 backend routes.
-- Commit: pending.
+- Commit: `af289fb Phase 3: add round and posting lifecycle endpoints`.
 
 ## Unit 2: input validation matrix
 - Added reusable UUID path validation on posting, shortlist, notes, and notification routes; validated ranking and company-ranking IDs, login email/password, and the postings `all` query parameter.
 - Added backend request assertions for invalid body, query, and path inputs on every endpoint that accepts user input. Paths now return the documented 400 `{ error, fields }` envelope.
 - Backend suite: 11 tests passed. Contract checker: 41 documented, 40 frontend calls, 41 backend routes.
-- Commit: pending.
+- Commit: `7a48c58 Phase 4: validate endpoint inputs consistently`.
 
 ## Unit 3: Phase 6 deployment readiness
 - `/api/health` was already implemented and is exercised by the backend integration test.
@@ -53,4 +52,11 @@
 - Added fail-fast environment checks for Supabase URL/service key, HTTPS in production, required production CORS origins, and malformed origin entries.
 - Added `DEPLOY.md` for the split Vercel frontend/API deployment and linked it from `MANUAL_STEPS.md`.
 - Backend suite: 14 tests passed, including environment and CORS tests. Contract checker remains at 41 documented/implemented routes.
-- Commit: pending.
+- Commit: `158cbe3 Phase 5: add deployment readiness checks and guide`.
+
+## Unit 4: executable contract checker
+- The checker inspects every route callback, fails when a route has no response-capable handler or contains a TODO/501 stub, and fails if a documented endpoint has no backend registration.
+- It runs backend HTTP integration tests using the fake Supabase adapter before passing, so checker success includes executable handler behavior.
+- Added four checker unit tests for real callbacks, missing/empty/stub handlers, named helper handlers, and commented-out declarations.
+- Final verification: the repository test command passed (96 tests total), contract checker passed with 41 real handlers, production build passed, and `git diff --check` passed.
+- Commit: `Phase 6: verify real backend handlers in contract checker`.

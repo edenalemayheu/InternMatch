@@ -14,6 +14,8 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { handlerFailure, inspectRegistrations } from './contract-route-inspector.mjs';
 
 const ROOT = process.cwd();
 const norm = (method, path) =>
@@ -42,13 +44,15 @@ for (const m of readFileSync(clientFile, 'utf8').matchAll(/\b(?:apiFetch|request
 /* 3. Endpoints the backend implements */
 const routesDir = join(ROOT, 'backend/src/routes');
 const implemented = new Map();
+const handlerFailures = [];
 if (existsSync(routesDir)) {
   for (const f of readdirSync(routesDir).filter((x) => x.endsWith('.js'))) {
     const prefix = f.startsWith('admin.') ? '/api/admin' : '/api';
-    const src = readFileSync(join(routesDir, f), 'utf8')
-      .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');   // ignore commented-out code
-    for (const m of src.matchAll(/router\.(get|post|patch|put|delete)\(\s*['"`]([^'"`]*)['"`]/gi)) {
-      implemented.set(norm(m[1], prefix + (m[2] === '/' ? '' : m[2])), `${m[1].toUpperCase()} ${prefix}${m[2]}`);
+    const src = readFileSync(join(routesDir, f), 'utf8');
+    const registrations = inspectRegistrations(src, /\brouter\.(get|post|patch|put|delete)\s*\(/gi, prefix);
+    for (const route of registrations) {
+      if (handlerFailure(route, src)) handlerFailures.push(`${f}: ${route.method} ${route.path || '(dynamic path)'} — ${handlerFailure(route, src)}`);
+      if (route.path) implemented.set(norm(route.method, route.path), `${route.method} ${route.path}`);
     }
   }
 }
@@ -56,8 +60,13 @@ if (existsSync(routesDir)) {
 /* routes registered directly on the app in app.js, e.g. app.get('/api/health', ...) */
 const appFile = join(ROOT, 'backend/src/app.js');
 if (existsSync(appFile)) {
-  for (const m of readFileSync(appFile, 'utf8').matchAll(/^\s*app\.(get|post|patch|put|delete)\(\s*['"`](\/api[^'"`]*)['"`]/gim)) {
-    implemented.set(norm(m[1], m[2]), `${m[1].toUpperCase()} ${m[2]}`);
+  const src = readFileSync(appFile, 'utf8');
+  const registrations = inspectRegistrations(src, /\bapp\.(get|post|patch|put|delete)\s*\(/gi, '');
+  for (const route of registrations) {
+    if (route.path && route.path.startsWith('/api')) {
+      if (handlerFailure(route, src)) handlerFailures.push(`app.js: ${route.method} ${route.path} — ${handlerFailure(route, src)}`);
+      implemented.set(norm(route.method, route.path), `${route.method} ${route.path}`);
+    }
   }
 }
 
@@ -73,11 +82,28 @@ const notCalled = keys(documented, called);
 const notImplemented = keys(documented, implemented);
 
 console.log(`Documented: ${documented.size}   Frontend calls: ${called.size}   Backend routes: ${implemented.size}`);
+console.log(`Backend handlers: ${implemented.size - handlerFailures.length} real callbacks`);
+if (handlerFailures.length) { console.log(`\nFAIL: missing or stub backend handlers (${handlerFailures.length})`); handlerFailures.forEach(value => console.log(`  - ${value}`)); }
 if (frontendUndocumented.length) show('FAIL: frontend calls these but the docs do not describe them', frontendUndocumented, called);
 if (backendUndocumented.length)  show('FAIL: backend implements these but the docs do not describe them', backendUndocumented, implemented);
 if (notCalled.length)            show('Info: documented but not called by the frontend yet', notCalled, documented);
-if (notImplemented.length)       show('Info: documented but not implemented in the backend yet', notImplemented, documented);
+if (notImplemented.length)       show('FAIL: documented but not implemented in the backend', notImplemented, documented);
 
-const failed = frontendUndocumented.length + backendUndocumented.length;
-console.log(failed ? `\nContract check FAILED (${failed} mismatch${failed > 1 ? 'es' : ''}).` : '\nContract check passed: nothing the frontend calls or the backend serves is undocumented.');
+let smokeFailed = false;
+if (handlerFailures.length === 0 && notImplemented.length === 0) {
+  const routeTests = readdirSync(routesDir).filter(name => name.endsWith('.test.js')).map(name => join(routesDir, name));
+  const smoke = spawnSync(process.execPath, ['--test', ...routeTests], { cwd: ROOT, encoding: 'utf8', timeout: 120000 });
+  if (smoke.status !== 0) {
+    smokeFailed = true;
+    console.error('\nFAIL: in-memory backend route tests failed; registered handlers did not pass executable HTTP checks.');
+    console.error((smoke.stdout + smoke.stderr).split('\n').slice(-50).join('\n'));
+  } else {
+    const summary = (smoke.stdout + smoke.stderr).match(/ℹ tests (\d+)/);
+    console.log(`In-memory backend HTTP handler tests passed: ${summary?.[1] || 'route suite'} tests`);
+  }
+} else if (notImplemented.length) {
+  console.log('\nIn-memory backend HTTP tests skipped until every documented route has a backend handler.');
+}
+const failed = frontendUndocumented.length + backendUndocumented.length + notImplemented.length + handlerFailures.length + Number(smokeFailed);
+console.log(failed ? `\nContract check FAILED (${failed} problem${failed > 1 ? 's' : ''}).` : '\nContract check passed: documented routes, real handlers, frontend calls and executable backend HTTP checks are aligned.');
 process.exit(failed ? 1 : 0);
