@@ -3,7 +3,7 @@
  * Shortlisted students only. Interview notes. Score 1-10 or drag-reorder.
  * Submit Final Ranking — only enabled in interviewing/company_ranking.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -20,7 +20,7 @@ import EmptyState from '../../components/ui/EmptyState.jsx';
 
 const ACTIVE_PHASES = ['interviewing', 'company_ranking'];
 
-function SortableStudent({ student, index, total, onUp, onDown, score, onScore, notes, onNotes, locked }) {
+function SortableStudent({ student, index, total, onUp, onDown, score, onScore, notes, onNotes, onNotesBlur, noteStatus, locked }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: student.id });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
@@ -41,7 +41,7 @@ function SortableStudent({ student, index, total, onUp, onDown, score, onScore, 
         {!locked && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             <label style={{ fontSize: 10, color: 'var(--color-neutral-500)', fontWeight: 600, textTransform: 'uppercase' }}>Score</label>
-            <input type="number" min="1" max="10" value={score || ''} onChange={e => onScore(student.id, +e.target.value)}
+            <input type="number" min="1" max="10" value={score || ''} onChange={e => onScore(student.id, e.target.value)}
               style={{ width: 52, height: 36, borderRadius: 6, border: '1px solid var(--color-neutral-200)', textAlign: 'center', fontSize: 'var(--text-sm)', fontWeight: 700 }} />
           </div>
         )}
@@ -56,9 +56,14 @@ function SortableStudent({ student, index, total, onUp, onDown, score, onScore, 
         {/* Notes */}
         <div style={{ width: '100%', marginTop: 'var(--space-2)' }}>
           <label style={{ fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)', fontWeight: 600, textTransform: 'uppercase' }}>Interview notes</label>
+          {noteStatus === 'saving' && <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--color-neutral-500)' }}>Saving...</span>}
+          {noteStatus === 'saved'  && <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--color-success-600, #15803d)' }}>Saved</span>}
+          {noteStatus === 'error'  && <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--color-error-500)' }}>Not saved. Click outside the box to retry.</span>}
           <textarea
             value={notes || ''}
             onChange={e => onNotes(student.id, e.target.value)}
+            onBlur={() => onNotesBlur(student.id)}
+            maxLength={2000}
             readOnly={locked}
             rows={2}
             placeholder="Add interview notes..."
@@ -78,6 +83,8 @@ export default function CompanyInterviews() {
   const [order,    setOrder]    = useState([]);   // student ids
   const [scores,   setScores]   = useState({});   // id → number
   const [notes,    setNotes]    = useState({});    // id → string
+  const [noteStatus, setNoteStatus] = useState({}); // id → 'saving' | 'saved' | 'error'
+  const savedNotes = useRef({});                      // last text the server has, per student
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
 
@@ -91,6 +98,9 @@ export default function CompanyInterviews() {
     api.getShortlistedStudents(postingId)
       .then(r => {
         setStudents(r.students || []);
+        const fromServer = Object.fromEntries((r.students || []).map(s => [s.id, s.notes || '']));
+        savedNotes.current = { ...fromServer };
+        setNotes(fromServer);
         setOrder((r.students || []).map(s => s.id));
         if (r.companyRanking?.ordered_student_ids) setOrder(r.companyRanking.ordered_student_ids);
         if (r.companyRanking?.scores) setScores(r.companyRanking.scores);
@@ -109,15 +119,50 @@ export default function CompanyInterviews() {
   function moveUp(idx) { setOrder(o => { const n=[...o]; [n[idx-1],n[idx]]=[n[idx],n[idx-1]]; return n; }); }
   function moveDown(idx) { setOrder(o => { const n=[...o]; [n[idx],n[idx+1]]=[n[idx+1],n[idx]]; return n; }); }
 
+  // An empty box removes the score; only whole numbers from 1 to 10 are kept.
+  function setScore(id, raw) {
+    setScores(sc => {
+      const next = { ...sc };
+      const n = Number(raw);
+      if (raw === '' || raw == null) delete next[id];
+      else if (Number.isInteger(n) && n >= 1 && n <= 10) next[id] = n;
+      return next;
+    });
+  }
+
+  // Notes save when you leave the box, not on every keystroke.
+  async function saveNote(id) {
+    const text = notes[id] || '';
+    if (text === (savedNotes.current[id] || '')) return;
+    setNoteStatus(s => ({ ...s, [id]: 'saving' }));
+    try {
+      await api.saveInterviewNotes(postingId, id, text);
+      savedNotes.current[id] = text;
+      setNoteStatus(s => ({ ...s, [id]: 'saved' }));
+    } catch (err) {
+      setNoteStatus(s => ({ ...s, [id]: 'error' }));
+      api.showError(toast, err, 'Could not save the note.');
+    }
+  }
+
+  // The server accepts an order OR scores, never both. Scores are used only when
+  // every shortlisted student has one; otherwise the drag order is sent.
+  const allScored = students.length > 0 && students.every(s => Number.isInteger(scores[s.id]));
+
   async function submit() {
     setSaving(true);
     try {
-      await api.submitCompanyRanking(postingId, {
-        ordered_student_ids: order,
-        scores: Object.keys(scores).length > 0 ? scores : null,
-      });
+      await api.submitCompanyRanking(
+        postingId,
+        allScored
+          ? { scores: Object.fromEntries(students.map(s => [s.id, scores[s.id]])) }
+          : { ordered_student_ids: order },
+      );
       toast.success('Final ranking submitted.');
-    } catch (err) { toast.error(err.message); }
+    } catch (err) {
+      if (err.data?.fields) toast.error(Object.values(err.data.fields)[0]);
+      else api.showError(toast, err, 'Could not submit your ranking.');
+    }
     finally { setSaving(false); }
   }
 
@@ -151,15 +196,16 @@ export default function CompanyInterviews() {
       ) : (
         <>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-neutral-600)', marginBottom: 'var(--space-4)' }}>
-            Drag to reorder, set a 1–10 score, and add interview notes. Your top-ranked student is #1.
+            Drag to reorder, or give every student a 1–10 score. Scores are used only when every student has one; otherwise your drag order is used. Notes save when you click outside the box.
           </p>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={order} strategy={verticalListSortingStrategy}>
               {orderedStudents.map((s, i) => (
                 <SortableStudent key={s.id} student={s} index={i} total={order.length}
                   onUp={moveUp} onDown={moveDown}
-                  score={scores[s.id]} onScore={(id, v) => setScores(sc => ({ ...sc, [id]: v }))}
+                  score={scores[s.id]} onScore={setScore}
                   notes={notes[s.id]} onNotes={(id, v) => setNotes(n => ({ ...n, [id]: v }))}
+                  onNotesBlur={saveNote} noteStatus={noteStatus[s.id]}
                   locked={locked || !active}
                 />
               ))}

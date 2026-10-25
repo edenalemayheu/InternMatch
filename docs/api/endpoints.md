@@ -21,6 +21,8 @@ Base URL: `/api`. Every response is JSON.
 | `404` | `{ "error": "message" }` | Not found, or not owned by the caller (the two are not distinguished, so IDs cannot be probed). |
 | `500` | `{ "error": "message" }` | Unexpected server error. Never include stack traces or database details. |
 
+**Order of checks.** Every endpoint checks, in this order: authentication (`401`), role (`403`), ownership (`404`), round phase (`403` with `currentPhase`), then the request body (`400` with `fields`). A company asking about someone else's posting therefore always gets `404`, whatever the phase, so IDs cannot be probed.
+
 **Round phases, in order:** `ranking_open`, `ranking_locked`, `shortlisting`, `shortlist_locked`, `interviewing`, `company_ranking`, `company_locked`, `matched`, `revealed`. "At or past X" means the current phase is X or any later one.
 
 **Unknown input.** The server ignores any body field it does not list for an endpoint. In particular it never accepts `id`, `user_id`, `round_id`, `role`, `is_admin` or `contact_email` from a client.
@@ -110,7 +112,7 @@ Auth: student. Postings of the current round.
 
 ### `POST /api/rankings`
 Auth: student with a profile. Body `{ ordered_posting_ids: string[] }`.
-- Creates or replaces the student's ranking for the current round. Each ID must be a posting of the current round, and there must be no duplicates. An empty array clears the ranking.
+- Creates or replaces the student's ranking for the current round. Each ID must be a posting of the current round, and there must be no duplicates; otherwise `400` with `fields.ordered_posting_ids`. An empty array clears the ranking.
 - **Phase: `ranking_open` only**, otherwise `403` with `currentPhase`.
 - `200` `{ ok: true }`.
 
@@ -135,9 +137,10 @@ Auth: company. `200` `{ postingsCount, applicantsCount, shortlistedCount }`, cou
 
 ### `POST /api/postings`
 Auth: company with a profile. Body `{ title, required_department, required_skills, capacity }`.
-- `title` is required. `capacity` is an integer from 1 to 10. `required_department` may be `""`.
+- `title` is required (up to 120 characters). `capacity` is an integer from 1 to 10. `required_department` may be `""`. `required_skills` is a list of strings. Anything else in the body is ignored.
+- **Phase: `ranking_open` only**, otherwise `403` with `currentPhase`. Students rank postings, so postings cannot be added once ranking closes.
 - The posting is tied to the current round and the caller's company.
-- `201` `{ posting }`.
+- `201` `{ posting }` (including `company_name`).
 
 ### `GET /api/postings/mine`
 Auth: company. `200` `{ postings }` owned by the caller in the current round.
@@ -158,7 +161,7 @@ Auth: company that owns the posting. **Allowed at or past `ranking_locked`**, ot
 
 ### `PATCH /api/shortlists/:postingId/:studentId`
 Auth: company that owns posting `:postingId`. Body `{ shortlist_status: 'shortlisted'|'rejected'|'pending' }`.
-- The student must have ranked that posting.
+- `shortlist_status` must be one of the three values, otherwise `400` with `fields.shortlist_status`. The student must have ranked that posting, otherwise `404`.
 - **Phase: `ranking_locked` or `shortlisting`**, otherwise `403` with `currentPhase`.
 - Creates the shortlist row if it does not exist. `200` `{ ok: true }`.
 
@@ -172,13 +175,13 @@ Auth: company that owns the posting.
 ### `POST /api/company-rankings`
 Auth: company that owns the posting. Body `{ posting_id, ordered_student_ids?, scores? }`.
 - **Send exactly one** of `ordered_student_ids` (array of student IDs, best first) or `scores` (object `{ "<studentId>": integer 1-10 }`). Both, or neither, is `400`.
-- Every ID must belong to a student with `shortlist_status = 'shortlisted'` for this posting.
+- Every ID must belong to a student with `shortlist_status = 'shortlisted'` for this posting, and no ID may appear twice. Scores must be whole numbers from 1 to 10. Any violation is `400` with `fields.ordered_student_ids` or `fields.scores`. A partial list is allowed: students left out are simply not ranked by this company.
 - **Phase: `interviewing` or `company_ranking`**, otherwise `403` with `currentPhase`.
 - Creates or replaces the row for `(posting, round)`. `200` `{ ok: true }`.
 
 ### `PUT /api/postings/:postingId/notes/:studentId`
 Auth: company that owns the posting. Body `{ notes: string }` (up to 2000 characters, empty string clears).
-- The student must be shortlisted for this posting.
+- The student must be shortlisted for this posting, otherwise `404`. `notes` longer than 2000 characters is `400` with `fields.notes`. Sending an empty string deletes the note.
 - **Phase: `interviewing` or `company_ranking`.**
 - Upserts one row in `interview_notes` for `(posting, student)`. `200` `{ ok: true }`.
 

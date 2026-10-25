@@ -17,6 +17,7 @@ import TagInput from '../../components/ui/TagInput.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import Badge   from '../../components/ui/Badge.jsx';
+import Banner  from '../../components/ui/Banner.jsx';
 
 const DEPTS = ['Computer Science','Data Science','Business','Engineering','Environmental Science','Finance','Education','Design','Other',''];
 
@@ -33,7 +34,10 @@ export default function CompanyPostings() {
   const [errors,   setErrors]   = useState({});
 
   function load() {
-    api.getMyPostings().then(r => setPostings(r.postings || [])).finally(() => setLoading(false));
+    api.getMyPostings()
+      .then(r => setPostings(r.postings || []))
+      .catch(err => api.showError(toast, err, 'Could not load your postings.'))
+      .finally(() => setLoading(false));
   }
   useEffect(load, []);
 
@@ -70,7 +74,10 @@ export default function CompanyPostings() {
       setModal(false);
       toast.success(editing ? 'Posting updated.' : 'Posting created.');
       load();
-    } catch (err) { toast.error(err.message); }
+    } catch (err) {
+      if (err.data?.fields) setErrors(err.data.fields);
+      api.showError(toast, err, 'Could not save the posting.');
+    }
     finally { setSaving(false); }
   }
 
@@ -81,11 +88,13 @@ export default function CompanyPostings() {
       setDeleting(null);
       toast.success('Posting deleted.');
       load();
-    } catch (err) { toast.error(err.message); }
+    } catch (err) { api.showError(toast, err, 'Could not delete the posting.'); }
     finally { setSaving(false); }
   }
 
   const phase = round?.phase;
+  // Students rank postings, so postings can only change while ranking is open.
+  const canEdit = phase === 'ranking_open';
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-16)' }}><Spinner /></div>;
 
@@ -93,11 +102,17 @@ export default function CompanyPostings() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
         <h1 className="page-title">Postings</h1>
-        <Button onClick={openCreate}><Plus size={16} /> Create posting</Button>
+        <Button onClick={openCreate} disabled={!canEdit}><Plus size={16} /> Create posting</Button>
       </div>
 
+      {!canEdit && (
+        <Banner variant="info" style={{ marginBottom: 'var(--space-5)' }}>
+          Ranking has closed, so postings can no longer be created, edited or deleted.
+        </Banner>
+      )}
+
       {postings.length === 0 ? (
-        <EmptyState icon={Plus} title="No postings yet" message="Create your first posting to start receiving applications." action={<Button onClick={openCreate}>Create posting</Button>} />
+        <EmptyState icon={Plus} title="No postings yet" message="Create your first posting to start receiving applications." action={canEdit ? <Button onClick={openCreate}>Create posting</Button> : null} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {postings.map(p => (
@@ -118,8 +133,8 @@ export default function CompanyPostings() {
                       <Users size={14} /> Applicants
                     </Button>
                   )}
-                  <button onClick={() => openEdit(p)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-neutral-200)', background: 'none', cursor: 'pointer', color: 'var(--color-neutral-600)' }}><Pencil size={14} /></button>
-                  <button onClick={() => setDeleting(p)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-error-500)', background: 'none', cursor: 'pointer', color: 'var(--color-error-500)' }}><Trash2 size={14} /></button>
+                  <button onClick={() => openEdit(p)} disabled={!canEdit} title={canEdit ? undefined : 'Postings are locked once ranking closes'} style={{ opacity: canEdit ? 1 : 0.4,  padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-neutral-200)', background: 'none', cursor: 'pointer', color: 'var(--color-neutral-600)' }}><Pencil size={14} /></button>
+                  <button onClick={() => setDeleting(p)} disabled={!canEdit} title={canEdit ? undefined : 'Postings are locked once ranking closes'} style={{ opacity: canEdit ? 1 : 0.4,  padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-error-500)', background: 'none', cursor: 'pointer', color: 'var(--color-error-500)' }}><Trash2 size={14} /></button>
                 </div>
               </div>
             </Card>

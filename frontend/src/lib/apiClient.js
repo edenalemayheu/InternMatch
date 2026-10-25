@@ -140,6 +140,51 @@ function withCompanyName(db, posting) {
   return { ...posting, company_name: company?.company_name ?? '' };
 }
 
+/** Mock only: build an Error shaped like the real API's error responses. */
+function apiError(status, message, extra) {
+  return Object.assign(new Error(message), { status, data: { error: message, ...extra } });
+}
+const wrongPhase  = (db) => apiError(403, 'Action not allowed in current phase', { currentPhase: db.round.phase });
+const fieldErrors = (fields) => apiError(400, 'Check the highlighted fields.', { fields });
+
+/**
+ * Mock only. The real backend checks in this order: role (403), ownership (404),
+ * phase (403), then validation (400). The helpers below keep the demo identical.
+ */
+function requireCompany(db, session) {
+  const company = session?.role === 'company' ? db.companies.find(c => c.user_id === session.id) : null;
+  if (!company) throw apiError(403, 'Forbidden');
+  return company;
+}
+/** A posting of the current round owned by this company. Someone else's posting looks like a missing one. */
+function ownPosting(db, company, postingId) {
+  const posting = db.postings.find(p => p.id === postingId && p.company_id === company.id && p.round_id === db.round.id);
+  if (!posting) throw apiError(404, 'Posting not found');
+  return posting;
+}
+/** The only student fields a company may see. contact_email is added only when the reveal rule allows it. */
+function companyFacingStudent(student) {
+  const { id, full_name, department, year, skills, portfolio_url, availability } = student;
+  return { id, full_name, department, year, skills, portfolio_url, availability };
+}
+const POSTING_FIELDS = ['title', 'required_department', 'required_skills', 'capacity'];
+const pick = (obj, keys) => Object.fromEntries(keys.filter(k => obj?.[k] !== undefined).map(k => [k, obj[k]]));
+
+function validatePosting(d, { partial }) {
+  const f = {};
+  if (!partial || d.title !== undefined) {
+    if (typeof d.title !== 'string' || !d.title.trim() || d.title.length > 120) f.title = 'Enter a title (up to 120 characters).';
+  }
+  if (d.required_department !== undefined && typeof d.required_department !== 'string') f.required_department = 'Must be text.';
+  if (d.required_skills !== undefined && !(Array.isArray(d.required_skills) && d.required_skills.every(x => typeof x === 'string'))) {
+    f.required_skills = 'Must be a list of skills.';
+  }
+  if (!partial || d.capacity !== undefined) {
+    if (!Number.isInteger(d.capacity) || d.capacity < 1 || d.capacity > 10) f.capacity = 'Must be a whole number from 1 to 10.';
+  }
+  return f;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH
 // ─────────────────────────────────────────────────────────────────────────────
@@ -345,58 +390,71 @@ export async function getMyPostings() {
   return { postings };
 }
 
-/** POST /api/postings — create posting */
+/** POST /api/postings. Only while ranking is open. */
 export async function createPosting(data) {
   if (!USE_MOCK) return apiFetch('POST', '/postings', data);
 
   await delay();
   const { getDb, updateDb, newId, getSession } = await getMock();
-  const session = getSession();
   const db = getDb();
-  const company = db.companies.find(c => c.user_id === session?.id);
-  if (!company) throw Object.assign(new Error('Company profile not found'), { status: 403 });
+  const company = requireCompany(db, getSession());
+  if (db.round.phase !== 'ranking_open') throw wrongPhase(db);
 
-  // Only these fields come from the client; the server sets everything else.
-  const { title, required_department = '', required_skills = [], capacity } = data;
-  const id = newId('p');
+  const input = pick(data, POSTING_FIELDS);
+  const fields = validatePosting(input, { partial: false });
+  if (Object.keys(fields).length) throw fieldErrors(fields);
+
+  // Only the four listed fields come from the client; the server sets everything else.
   const posting = {
-    id, company_id: company.id, round_id: db.round.id,
-    title, required_department, required_skills, capacity,
+    id: newId('p'), company_id: company.id, round_id: db.round.id,
+    title: input.title.trim(),
+    required_department: input.required_department ?? '',
+    required_skills: input.required_skills ?? [],
+    capacity: input.capacity,
     created_at: new Date().toISOString(),
   };
-  updateDb(db => { db.postings.push(posting); return db; });
+  updateDb(d => { d.postings.push(posting); return d; });
   return { posting: { ...posting, company_name: company.company_name } };
 }
 
-/** PATCH /api/postings/:id — update posting */
+/** PATCH /api/postings/:id. Owner only, only while ranking is open. */
 export async function updatePosting(postingId, data) {
   if (!USE_MOCK) return apiFetch('PATCH', `/postings/${postingId}`, data);
 
   await delay();
-  const { updateDb, getSession, getDb } = await getMock();
-  const session = getSession();
+  const { getDb, updateDb, getSession } = await getMock();
   const db = getDb();
-  const company = db.companies.find(c => c.user_id === session?.id);
-  updateDb(db => {
-    const i = db.postings.findIndex(p => p.id === postingId && p.company_id === company?.id);
-    if (i >= 0) Object.assign(db.postings[i], data);
-    return db;
-  });
+  const company = requireCompany(db, getSession());
+  ownPosting(db, company, postingId);
+  if (db.round.phase !== 'ranking_open') throw wrongPhase(db);
+
+  const changes = pick(data, POSTING_FIELDS); // id, company_id, round_id and anything else are ignored
+  const fields = validatePosting(changes, { partial: true });
+  if (Object.keys(fields).length) throw fieldErrors(fields);
+  if (typeof changes.title === 'string') changes.title = changes.title.trim();
+
+  updateDb(d => { Object.assign(d.postings.find(p => p.id === postingId), changes); return d; });
   return { ok: true };
 }
 
-/** DELETE /api/postings/:id */
+/** DELETE /api/postings/:id. Owner only, only while ranking is open. Removes everything that points at it. */
 export async function deletePosting(postingId) {
   if (!USE_MOCK) return apiFetch('DELETE', `/postings/${postingId}`);
 
   await delay();
-  const { updateDb, getSession, getDb } = await getMock();
-  const session = getSession();
+  const { getDb, updateDb, getSession } = await getMock();
   const db = getDb();
-  const company = db.companies.find(c => c.user_id === session?.id);
-  updateDb(db => {
-    db.postings = db.postings.filter(p => !(p.id === postingId && p.company_id === company?.id));
-    return db;
+  const company = requireCompany(db, getSession());
+  ownPosting(db, company, postingId);
+  if (db.round.phase !== 'ranking_open') throw wrongPhase(db);
+
+  updateDb(d => {
+    d.postings = d.postings.filter(p => p.id !== postingId);
+    for (const sr of d.studentRankings) sr.ordered_posting_ids = sr.ordered_posting_ids.filter(id => id !== postingId);
+    d.shortlists = d.shortlists.filter(sl => sl.posting_id !== postingId);
+    d.companyRankings = d.companyRankings.filter(r => r.posting_id !== postingId);
+    d.interviewNotes = (d.interviewNotes || []).filter(n => n.posting_id !== postingId);
+    return d;
   });
   return { ok: true };
 }
@@ -412,12 +470,16 @@ export async function saveRanking(orderedPostingIds) {
   await delay();
   const { getDb, updateDb, newId, getSession, phaseAtLeast } = await getMock();
   const db = getDb();
-  if (db.round.phase !== 'ranking_open') {
-    throw Object.assign(new Error('Action not allowed in current phase'), { status: 403, data: { currentPhase: db.round.phase } });
-  }
   const session = getSession();
-  const student = db.students.find(s => s.user_id === session?.id);
-  if (!student) throw Object.assign(new Error('No student profile'), { status: 403 });
+  const student = session?.role === 'student' ? db.students.find(s => s.user_id === session.id) : null;
+  if (!student) throw apiError(403, 'Forbidden');
+  if (db.round.phase !== 'ranking_open') throw wrongPhase(db);
+
+  const known = new Set(db.postings.filter(p => p.round_id === db.round.id).map(p => p.id));
+  if (!Array.isArray(orderedPostingIds) || orderedPostingIds.some(id => typeof id !== 'string') ||
+      new Set(orderedPostingIds).size !== orderedPostingIds.length || orderedPostingIds.some(id => !known.has(id))) {
+    throw fieldErrors({ ordered_posting_ids: 'Must be a list of unique postings from this round.' });
+  }
 
   updateDb(db => {
     const existing = db.studentRankings.findIndex(sr => sr.student_id === student.id && sr.round_id === db.round.id);
@@ -509,89 +571,67 @@ export async function updateCompanyProfile(data) {
 // APPLICANTS & SHORTLISTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** GET /api/postings/:id/applicants */
+/** GET /api/postings/:id/applicants. Owner only, from ranking_locked onward. */
 export async function getApplicants(postingId) {
   if (!USE_MOCK) return apiFetch('GET', `/postings/${postingId}/applicants`);
 
   await delay();
   const { getDb, getSession, phaseAtLeast } = await getMock();
   const db = getDb();
+  const company = requireCompany(db, getSession());
+  ownPosting(db, company, postingId);
+  if (!phaseAtLeast(db.round.phase, 'ranking_locked')) throw wrongPhase(db);
 
-  if (!phaseAtLeast(db.round.phase, 'ranking_locked')) {
-    throw Object.assign(new Error('Action not allowed in current phase'), {
-      status: 403, data: { currentPhase: db.round.phase },
-    });
-  }
-
-  const session = getSession();
-  const company = db.companies.find(c => c.user_id === session?.id);
-
-  // Get all students who ranked this posting, with their rank position
+  // contact_email only for shortlisted students, and only from shortlist_locked onward
+  const contactOpen = phaseAtLeast(db.round.phase, 'shortlist_locked');
   const applicants = [];
   for (const sr of db.studentRankings) {
+    if (sr.round_id !== db.round.id) continue;
     const rankPos = sr.ordered_posting_ids.indexOf(postingId);
     if (rankPos === -1) continue;
-
     const student = db.students.find(s => s.id === sr.student_id);
     if (!student) continue;
 
-    const sl = db.shortlists.find(s => s.posting_id === postingId && s.student_id === student.id && s.round_id === db.round.id);
+    const sl = db.shortlists.find(x => x.posting_id === postingId && x.student_id === student.id && x.round_id === db.round.id);
     const shortlist_status = sl?.shortlist_status || 'pending';
-
-    // contact_email: only if shortlisted AND phase >= shortlist_locked, AND requesting company owns posting
-    const posting = db.postings.find(p => p.id === postingId);
-    const isOwnedByCompany = company && posting?.company_id === company.id;
-    const revealContact = isOwnedByCompany &&
-      shortlist_status === 'shortlisted' &&
-      phaseAtLeast(db.round.phase, 'shortlist_locked');
-
-    applicants.push({
-      id: student.id,
-      user_id: student.user_id,
-      full_name: student.full_name,
-      department: student.department,
-      year: student.year,
-      skills: student.skills,
-      portfolio_url: student.portfolio_url,
-      availability: student.availability,
-      contact_email: revealContact ? student.contact_email : undefined, // absent if not revealed
-      rank_position: rankPos + 1, // 1-based
-      shortlist_status,
-    });
+    const applicant = { ...companyFacingStudent(student), rank_position: rankPos + 1, shortlist_status };
+    if (contactOpen && shortlist_status === 'shortlisted') applicant.contact_email = student.contact_email;
+    applicants.push(applicant);
   }
-
-  // Sort by rank_position asc
   applicants.sort((a, b) => a.rank_position - b.rank_position);
   return { applicants };
 }
 
-/** PATCH /api/shortlists/:postingId/:studentId */
+/** PATCH /api/shortlists/:postingId/:studentId. Owner only, in ranking_locked or shortlisting. */
 export async function updateShortlist(postingId, studentId, shortlist_status) {
   if (!USE_MOCK) return apiFetch('PATCH', `/shortlists/${postingId}/${studentId}`, { shortlist_status });
 
   await delay();
-  const { getDb, updateDb, newId } = await getMock();
+  const { getDb, updateDb, newId, getSession } = await getMock();
   const db = getDb();
+  const company = requireCompany(db, getSession());
+  ownPosting(db, company, postingId);
+  if (!['ranking_locked', 'shortlisting'].includes(db.round.phase)) throw wrongPhase(db);
 
-  if (!['ranking_locked', 'shortlisting'].includes(db.round.phase)) {
-    throw Object.assign(new Error('Action not allowed in current phase'), {
-      status: 403, data: { currentPhase: db.round.phase },
-    });
+  if (!['shortlisted', 'rejected', 'pending'].includes(shortlist_status)) {
+    throw fieldErrors({ shortlist_status: 'Must be shortlisted, rejected or pending.' });
   }
+  const applied = db.studentRankings.some(sr =>
+    sr.round_id === db.round.id && sr.student_id === studentId && sr.ordered_posting_ids.includes(postingId));
+  if (!applied) throw apiError(404, 'Applicant not found');
 
-  updateDb(db => {
-    const i = db.shortlists.findIndex(s => s.posting_id === postingId && s.student_id === studentId && s.round_id === db.round.id);
+  updateDb(d => {
+    const i = d.shortlists.findIndex(x => x.posting_id === postingId && x.student_id === studentId && x.round_id === d.round.id);
     if (i >= 0) {
-      db.shortlists[i].shortlist_status = shortlist_status;
-      db.shortlists[i].updated_at = new Date().toISOString();
+      d.shortlists[i].shortlist_status = shortlist_status;
+      d.shortlists[i].updated_at = new Date().toISOString();
     } else {
-      db.shortlists.push({
+      d.shortlists.push({
         id: newId('sl'), posting_id: postingId, student_id: studentId,
-        round_id: db.round.id, shortlist_status,
-        updated_at: new Date().toISOString(),
+        round_id: d.round.id, shortlist_status, updated_at: new Date().toISOString(),
       });
     }
-    return db;
+    return d;
   });
   return { ok: true };
 }
@@ -600,65 +640,106 @@ export async function updateShortlist(postingId, studentId, shortlist_status) {
 // INTERVIEWS / COMPANY RANKINGS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** GET shortlisted students for a posting (interviews page) */
+/** GET /api/postings/:id/shortlisted. Owner only. Includes saved interview notes. */
 export async function getShortlistedStudents(postingId) {
   if (!USE_MOCK) return apiFetch('GET', `/postings/${postingId}/shortlisted`);
 
   await delay();
   const { getDb, getSession, phaseAtLeast } = await getMock();
   const db = getDb();
-  const session = getSession();
-  const company = db.companies.find(c => c.user_id === session?.id);
+  const company = requireCompany(db, getSession());
+  ownPosting(db, company, postingId);
 
-  const shortlisted = db.shortlists.filter(
-    s => s.posting_id === postingId && s.shortlist_status === 'shortlisted' && s.round_id === db.round.id
-  );
+  const contactOpen = phaseAtLeast(db.round.phase, 'shortlist_locked');
+  const students = db.shortlists
+    .filter(sl => sl.posting_id === postingId && sl.shortlist_status === 'shortlisted' && sl.round_id === db.round.id)
+    .map(sl => {
+      const student = db.students.find(s => s.id === sl.student_id);
+      if (!student) return null;
+      const note = (db.interviewNotes || []).find(n => n.posting_id === postingId && n.student_id === student.id);
+      const out = { ...companyFacingStudent(student), shortlist_id: sl.id, notes: note?.notes ?? '' };
+      if (contactOpen) out.contact_email = student.contact_email;
+      return out;
+    })
+    .filter(Boolean);
 
-  const students = shortlisted.map(sl => {
-    const student = db.students.find(s => s.id === sl.student_id);
-    if (!student) return null;
-    // Contact email always shown for shortlisted students on interviews page (phase >= shortlist_locked)
-    const revealContact = phaseAtLeast(db.round.phase, 'shortlist_locked');
-    return {
-      ...student,
-      contact_email: revealContact ? student.contact_email : undefined,
-      shortlist_id: sl.id,
-    };
-  }).filter(Boolean);
-
-  // Get existing company ranking for this posting
-  const cr = db.companyRankings.find(r => r.posting_id === postingId && r.round_id === db.round.id);
-
-  return { students, companyRanking: cr || null };
+  const companyRanking = db.companyRankings.find(r => r.posting_id === postingId && r.round_id === db.round.id) || null;
+  return { students, companyRanking };
 }
 
-/** POST /api/company-rankings */
+/** POST /api/company-rankings. Owner only, interviewing or company_ranking. Send an order OR scores. */
 export async function submitCompanyRanking(postingId, data) {
   if (!USE_MOCK) return apiFetch('POST', '/company-rankings', { posting_id: postingId, ...data });
 
   await delay();
-  const { getDb, updateDb, newId } = await getMock();
+  const { getDb, updateDb, newId, getSession } = await getMock();
   const db = getDb();
+  const company = requireCompany(db, getSession());
+  ownPosting(db, company, postingId);
+  if (!['interviewing', 'company_ranking'].includes(db.round.phase)) throw wrongPhase(db);
 
-  if (!['interviewing', 'company_ranking'].includes(db.round.phase)) {
-    throw Object.assign(new Error('Action not allowed in current phase'), {
-      status: 403, data: { currentPhase: db.round.phase },
-    });
+  const hasOrder  = Array.isArray(data?.ordered_student_ids);
+  const hasScores = data?.scores != null && typeof data.scores === 'object' && !Array.isArray(data.scores);
+  if (hasOrder === hasScores) {
+    throw fieldErrors({ ordered_student_ids: 'Send either an order or scores, never both and never neither.' });
   }
 
-  updateDb(db => {
-    const i = db.companyRankings.findIndex(r => r.posting_id === postingId && r.round_id === db.round.id);
+  const shortlisted = new Set(db.shortlists
+    .filter(sl => sl.posting_id === postingId && sl.shortlist_status === 'shortlisted' && sl.round_id === db.round.id)
+    .map(sl => sl.student_id));
+
+  if (hasOrder) {
+    const ids = data.ordered_student_ids;
+    if (new Set(ids).size !== ids.length || ids.some(id => !shortlisted.has(id))) {
+      throw fieldErrors({ ordered_student_ids: 'Must list each shortlisted student at most once.' });
+    }
+  } else {
+    const entries = Object.entries(data.scores);
+    if (entries.some(([id, v]) => !shortlisted.has(id) || !Number.isInteger(v) || v < 1 || v > 10)) {
+      throw fieldErrors({ scores: 'Scores must be whole numbers from 1 to 10 for shortlisted students.' });
+    }
+  }
+
+  updateDb(d => {
+    const i = d.companyRankings.findIndex(r => r.posting_id === postingId && r.round_id === d.round.id);
     const record = {
-      id: i >= 0 ? db.companyRankings[i].id : newId('cr'),
-      posting_id: postingId, round_id: db.round.id,
-      ordered_student_ids: data.ordered_student_ids || null,
-      scores: data.scores || null,
+      id: i >= 0 ? d.companyRankings[i].id : newId('cr'),
+      posting_id: postingId, round_id: d.round.id,
+      ordered_student_ids: hasOrder ? data.ordered_student_ids : null,
+      scores: hasScores ? data.scores : null,
       locked_at: null,
       created_at: new Date().toISOString(),
     };
-    if (i >= 0) db.companyRankings[i] = record;
-    else db.companyRankings.push(record);
-    return db;
+    if (i >= 0) d.companyRankings[i] = record; else d.companyRankings.push(record);
+    return d;
+  });
+  return { ok: true };
+}
+
+/** PUT /api/postings/:postingId/notes/:studentId. Owner only, interviewing or company_ranking. */
+export async function saveInterviewNotes(postingId, studentId, notes) {
+  if (!USE_MOCK) return apiFetch('PUT', `/postings/${postingId}/notes/${studentId}`, { notes });
+
+  await delay(100);
+  const { getDb, updateDb, newId, getSession } = await getMock();
+  const db = getDb();
+  const company = requireCompany(db, getSession());
+  ownPosting(db, company, postingId);
+  const isShortlisted = db.shortlists.some(sl => sl.posting_id === postingId && sl.student_id === studentId &&
+    sl.shortlist_status === 'shortlisted' && sl.round_id === db.round.id);
+  if (!isShortlisted) throw apiError(404, 'Student not found');
+  if (!['interviewing', 'company_ranking'].includes(db.round.phase)) throw wrongPhase(db);
+  if (typeof notes !== 'string' || notes.length > 2000) {
+    throw fieldErrors({ notes: 'Notes must be text of at most 2000 characters.' });
+  }
+
+  updateDb(d => {
+    d.interviewNotes = d.interviewNotes || [];
+    const i = d.interviewNotes.findIndex(n => n.posting_id === postingId && n.student_id === studentId);
+    if (notes === '') { if (i >= 0) d.interviewNotes.splice(i, 1); }
+    else if (i >= 0) { d.interviewNotes[i].notes = notes; d.interviewNotes[i].updated_at = new Date().toISOString(); }
+    else d.interviewNotes.push({ id: newId('in'), round_id: d.round.id, posting_id: postingId, student_id: studentId, notes, updated_at: new Date().toISOString() });
+    return d;
   });
   return { ok: true };
 }
@@ -699,45 +780,50 @@ export async function markNotificationRead(notificationId) {
 // MATCHES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** GET /api/matches/me */
+/** GET /api/matches/me. Only when results are revealed. Field-by-field, never whole rows. */
 export async function getMyMatches() {
   if (!USE_MOCK) return apiFetch('GET', '/matches/me');
 
   await delay();
   const { getDb, getSession } = await getMock();
   const db = getDb();
-
-  if (db.round.phase !== 'revealed') {
-    throw Object.assign(new Error('Results not yet revealed'), { status: 403 });
-  }
-
   const session = getSession();
+  if (session?.role !== 'student' && session?.role !== 'company') throw apiError(403, 'Forbidden');
+  if (db.round.phase !== 'revealed') throw apiError(403, 'Results not yet revealed', { currentPhase: db.round.phase });
 
-  if (session?.role === 'student') {
+  const matchFields = (m) => pick(m, ['id', 'round_id', 'student_id', 'posting_id', 'mutual_score', 'created_at']);
+
+  if (session.role === 'student') {
     const student = db.students.find(s => s.user_id === session.id);
-    if (!student) return { match: null };
-    const match = db.matches.find(m => m.student_id === student.id && m.round_id === db.round.id);
+    const match = student && db.matches.find(m => m.student_id === student.id && m.round_id === db.round.id);
     if (!match) return { match: null };
     const posting = db.postings.find(p => p.id === match.posting_id);
     const company = db.companies.find(c => c.id === posting?.company_id);
-    return { match: { ...match, posting, company } };
+    return {
+      match: {
+        ...matchFields(match),
+        posting: posting ? pick(posting, ['id', 'title', 'required_department', 'required_skills', 'capacity']) : null,
+        company: company ? pick(company, ['id', 'company_name', 'contact_person', 'industry', 'logo_url']) : null,
+      },
+    };
   }
 
-  if (session?.role === 'company') {
-    const company = db.companies.find(c => c.user_id === session.id);
-    if (!company) return { matches: [] };
-    const postings = db.postings.filter(p => p.company_id === company.id);
-    const matches = db.matches.filter(m =>
-      postings.some(p => p.id === m.posting_id) && m.round_id === db.round.id
-    ).map(m => {
+  const company = db.companies.find(c => c.user_id === session.id);
+  if (!company) return { matches: [] };
+  const postings = db.postings.filter(p => p.company_id === company.id);
+  const matches = db.matches
+    .filter(m => m.round_id === db.round.id && postings.some(p => p.id === m.posting_id))
+    .map(m => {
       const student = db.students.find(s => s.id === m.student_id);
       const posting = postings.find(p => p.id === m.posting_id);
-      return { ...m, student, posting };
+      return {
+        ...matchFields(m),
+        // a matched student was necessarily shortlisted, so the contact email is part of the result
+        student: student ? { ...companyFacingStudent(student), contact_email: student.contact_email } : null,
+        posting: { id: posting.id, title: posting.title },
+      };
     });
-    return { matches };
-  }
-
-  return { matches: [] };
+  return { matches };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -869,6 +955,7 @@ export async function resetRound() {
     db.shortlists = db.shortlists.filter(s => s.round_id !== db.round.id);
     db.matches = db.matches.filter(m => m.round_id !== db.round.id);
     db.notifications = [];
+    db.interviewNotes = [];
     db.round.phase = 'ranking_open';
     return db;
   });
@@ -917,7 +1004,7 @@ export async function getCompanyStats() {
   const db = getDb();
   const session = getSession();
   const company = db.companies.find(c => c.user_id === session?.id);
-  if (!company) return { postings: 0, applicants: 0, shortlisted: 0 };
+  if (!company) return { postingsCount: 0, applicantsCount: 0, shortlistedCount: 0 };
 
   const myPostings = db.postings.filter(p => p.company_id === company.id && p.round_id === db.round.id);
   const postingIds = new Set(myPostings.map(p => p.id));

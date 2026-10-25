@@ -31,6 +31,7 @@ function makeSeed() {
     shortlists: [],
     matches: [],
     notifications: [],
+    interviewNotes: [],
     nextId: 1000,
   };
 }
@@ -38,7 +39,11 @@ function makeSeed() {
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const db = JSON.parse(raw);
+      if (!Array.isArray(db.interviewNotes)) db.interviewNotes = []; // demo data saved before this table existed
+      return db;
+    }
   } catch {}
   return makeSeed();
 }
