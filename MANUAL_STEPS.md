@@ -11,4 +11,34 @@
 9. To configure a deployed frontend, set `VITE_API_URL` in `frontend/.env` to the backend URL ending in `/api`.
 10. Deployment instructions for the API and frontend are in `DEPLOY.md`. The backend now fails at startup if its Supabase URL/key are missing; production also requires an HTTPS Supabase URL and an explicit `FRONTEND_ORIGIN` list.
 
+## Run the E2E round against real Supabase
+
+The E2E runner talks to the API, so point that API at the real Supabase project through `backend/.env`. The `--reset` flag creates a new round and demo postings; it leaves earlier rounds intact.
+
+1. If the demo accounts do not exist yet, configure `backend/.env` and run this once from the repository root (do not run the seed command in production):
+
+   ```powershell
+   npm run seed --prefix backend
+   ```
+
+2. Start the local backend in a first PowerShell terminal:
+
+   ```powershell
+   npm run dev:backend
+   ```
+
+3. In a second PowerShell terminal, run the full flow against that backend and the real Supabase project:
+
+   ```powershell
+   $env:API_URL = "http://localhost:3001/api"
+   npm run e2e -- --reset
+   Remove-Item Env:API_URL
+   ```
+
+   For an already-running deployed API, replace the API URL with `https://<your-api-domain>/api`. Ensure the seeded demo accounts exist and use a dedicated demo/test project; this command creates a new round and advances it through reveal.
+
+4. To run without creating a new round, use `npm run e2e` only when the current round is already `ranking_open`. If the runner fails, it prints the failed step and full API response body and exits non-zero.
+
+5. To verify the runner without Supabase or network access, run `node scripts/e2e-round.js --fake`; use `node scripts/e2e-round.js --fake --reset` to test fresh-round mode.
+
 The API contract has no admin create-round endpoint. `backend/scripts/seed.js` creates a demo round only when the database has none.

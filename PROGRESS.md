@@ -1,6 +1,6 @@
 # InternMatch completion progress
 
-**NEXT STEP:** On a fresh Supabase project, apply the SQL migrations and run `npm run e2e` as listed in `MANUAL_STEPS.md`.
+**NEXT STEP:** Point `API_URL` at the local API connected to the demo Supabase project and run `npm run e2e -- --reset`; see the commands at the end of `MANUAL_STEPS.md`.
 
 ## Initial repository summary (before implementation)
 - The repository is a React/Vite frontend, Express backend, and Supabase Postgres/Auth project. The root README and package scripts describe separate frontend/backend development.
@@ -60,3 +60,11 @@
 - Added four checker unit tests for real callbacks, missing/empty/stub handlers, named helper handlers, and commented-out declarations.
 - Final verification: the repository test command passed (96 tests total), contract checker passed with 41 real handlers, production build passed, and `git diff --check` passed.
 - Commit: `Phase 6: verify real backend handlers in contract checker`.
+
+## E2E runner repair
+- Fixed the accidental nested invocation that made `scripts/e2e-round.js` exit without starting `main()`.
+- Added per-operation PASS/FAIL output, full parsed HTTP response bodies for non-2xx and validation failures, explicit unreachable/no-open-round errors, API URL and round reporting, and an exit code of 1 on any failed or unrun workflow.
+- The runner now advances in the legal order: lock student rankings, shortlist during `shortlisting`, lock shortlist, interview, rank, lock company rankings, run matching, mark matched, reveal, and verify persisted student/company match reads.
+- Added `--reset` to create a new `ranking_open` round before creating its demo postings and running the flow. `--fake` runs the same flow against the in-memory Supabase adapter without touching a remote project.
+- Verified `node scripts/e2e-round.js --fake` and `node scripts/e2e-round.js --fake --reset` both completed with four persisted matches. A dead API URL printed `FAIL API_UNREACHABLE` and exited 1.
+- Commit: pending.
