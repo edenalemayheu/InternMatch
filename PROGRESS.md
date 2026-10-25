@@ -1,6 +1,6 @@
 # InternMatch completion progress
 
-**NEXT STEP:** Point `API_URL` at the local API connected to the demo Supabase project and run `npm run e2e -- --reset`; see the commands at the end of `MANUAL_STEPS.md`.
+**NEXT STEP:** Run `npm run seed --prefix backend` against the demo Supabase project to create student1's missing profile, then rerun both commands in the Login repair section below. After login verification, continue with the real round flow in `MANUAL_STEPS.md`.
 
 ## Initial repository summary (before implementation)
 - The repository is a React/Vite frontend, Express backend, and Supabase Postgres/Auth project. The root README and package scripts describe separate frontend/backend development.
@@ -68,3 +68,10 @@
 - Added `--reset` to create a new `ranking_open` round before creating its demo postings and running the flow. `--fake` runs the same flow against the in-memory Supabase adapter without touching a remote project.
 - Verified `node scripts/e2e-round.js --fake` and `node scripts/e2e-round.js --fake --reset` both completed with four persisted matches. A dead API URL printed `FAIL API_UNREACHABLE` and exited 1.
 - Commit: `9352c4d Fix E2E round runner and reset flow`.
+
+## Supabase login repair
+- Isolated password sign-in and refresh in a dedicated Supabase client so they cannot replace the service-role Authorization header used by database and admin operations. Password sign-in succeeded with the service key, so `SUPABASE_ANON_KEY` is optional; if set, it is used for the isolated Auth client.
+- Login now normalizes email with `trim().toLowerCase()` and reports Supabase error code/message for sign-in, profile lookup, or role resolution only in development. Added `backend/scripts/check-login.js` for credential-safe direct Supabase diagnostics.
+- Made demo seeding idempotent: existing Auth users are reset to the seeded password and confirmed, and the student loop now includes student1 (previously skipped). Fake tests cover client isolation and repeated seeding.
+- Verification: backend suite passed 16/16. Real Supabase checks for admin and student1 both signed in and found their `public.users` rows. Admin role resolution passed. Student1's linked `students` lookup returned `{ data: null, error: null }`; the contact-email lookup also returned no row, so rerun the seed to create it. The live API returned 200 for both users; student1 currently has `hasProfile: false` until seeded.
+- Commit: `67a5afa Fix Supabase login client isolation and demo seeding`.
