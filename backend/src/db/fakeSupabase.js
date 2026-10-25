@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-export function createFakeSupabase({tables={},tokens={},accounts={}}={}){
+export function createFakeSupabase({tables={},tokens={},accounts={},revokeServiceRoleAfterSignIn=false}={}){
  const state=Object.fromEntries(Object.entries(tables).map(([key,rows])=>[key,structuredClone(rows)]));
- const authAccounts=new Map(Object.values(accounts).map(account=>[account.email.toLowerCase(),structuredClone(account)]));
+ const authAccounts=new Map(Object.values(accounts).map(account=>[account.email.toLowerCase(),{confirmed:true,...structuredClone(account)}]));
  const tokenUsers=new Map(Object.entries(tokens));
  for(const table of ['users','students','companies','rounds','postings','student_rankings','shortlists','company_rankings','interview_notes','notifications','matches','match_runs'])state[table] ||= [];
  class Query{
@@ -17,7 +17,7 @@ export function createFakeSupabase({tables={},tokens={},accounts={}}={}){
   order(column,options={}){this.ordering={column,ascending:options.ascending!==false};return this;}
   limit(n){this.limitCount=n;return this;}
   matches(row){return this.filters.every(fn=>fn(row));}
-  async execute(){let rows=state[this.table];if(!rows)return {data:null,error:{message:`Unknown table ${this.table}`,code:'42P01'}};
+  async execute(){let rows=state[this.table];if(revokeServiceRoleAfterSignIn&&serviceRoleRevoked&&this.table==='users')return {data:null,error:{message:'permission denied after auth session changed the shared Authorization header',code:'42501'}};if(!rows)return {data:null,error:{message:`Unknown table ${this.table}`,code:'42P01'}};
    let result;
    if(this.op==='insert'){const input=Array.isArray(this.payload)?this.payload:[this.payload];result=input.map(item=>({...item,id:item.id||randomUUID(),created_at:item.created_at||new Date().toISOString()}));rows.push(...result);}
    else if(this.op==='upsert'){const input=Array.isArray(this.payload)?this.payload:[this.payload];result=input.map(item=>{let old=rows.find(row=>this.conflict.every(key=>row[key]===item[key]));if(old){Object.assign(old,item);return old;}const next={...item,id:item.id||randomUUID(),created_at:item.created_at||new Date().toISOString()};rows.push(next);return next;});}
@@ -37,13 +37,16 @@ export function createFakeSupabase({tables={},tokens={},accounts={}}={}){
   async single(){const out=await this.maybeSingle();return out.data?out:{data:null,error:{message:'Expected one row',code:'PGRST116'}};}
   then(resolve,reject){return this.execute().then(resolve,reject);}
  }
+ let serviceRoleRevoked=false;
  function sessionFor(user){const access_token=`fake-access-${user.id}`,refresh_token=`fake-refresh-${user.id}`;tokenUsers.set(access_token,user);return {access_token,refresh_token,expires_at:Math.floor(Date.now()/1000)+3600};}
  return {state,from(table){return new Query(table);},auth:{
   async getUser(token){const user=tokenUsers.get(token);return user?{data:{user},error:null}:{data:{user:null},error:new Error('Invalid token')};},
-  async signInWithPassword({email,password}){const account=authAccounts.get(String(email).toLowerCase());if(!account||account.password!==password)return {data:{user:null,session:null},error:new Error('Invalid login')};return {data:{user:account.user,session:sessionFor(account.user)},error:null};},
+  async signInWithPassword({email,password}){const account=authAccounts.get(String(email).trim().toLowerCase());if(!account||account.password!==password||!account.confirmed)return {data:{user:null,session:null},error:new Error('Invalid login')};if(revokeServiceRoleAfterSignIn)serviceRoleRevoked=true;return {data:{user:account.user,session:sessionFor(account.user)},error:null};},
   async refreshSession({refresh_token}){const user=[...tokenUsers.values()].find(value=>`fake-refresh-${value.id}`===refresh_token);return user?{data:{user,session:sessionFor(user)},error:null}:{data:{user:null,session:null},error:new Error('Invalid refresh token')};},
   admin:{
-   async createUser(input){const email=String(input.email).toLowerCase();if(authAccounts.has(email))return {data:{user:null},error:new Error('User already registered')};const user={id:randomUUID(),email:input.email,user_metadata:input.user_metadata||{},app_metadata:input.app_metadata||{}};authAccounts.set(email,{email:input.email,password:input.password,user});return {data:{user},error:null};},
+   async listUsers(){return {data:{users:[...authAccounts.values()].map(account=>({...account.user,email:account.email,email_confirmed_at:account.confirmed?'confirmed':null}))},error:null};},
+   async createUser(input){const email=String(input.email).toLowerCase();if(authAccounts.has(email))return {data:{user:null},error:new Error('User already registered')};const user={id:randomUUID(),email:input.email,user_metadata:input.user_metadata||{},app_metadata:input.app_metadata||{}};authAccounts.set(email,{email:input.email,password:input.password,confirmed:!!input.email_confirm,user});return {data:{user},error:null};},
+   async updateUserById(id,input){const entry=[...authAccounts.entries()].find(([,account])=>account.user.id===id);if(!entry)return {data:{user:null},error:new Error('User not found')};const [oldEmail,account]=entry;const email=String(input.email||account.email).toLowerCase();const user={...account.user,email:input.email||account.email,user_metadata:input.user_metadata||account.user.user_metadata,app_metadata:input.app_metadata||account.user.app_metadata};authAccounts.delete(oldEmail);authAccounts.set(email,{...account,email:input.email||account.email,password:input.password??account.password,confirmed:input.email_confirm??account.confirmed,user});return {data:{user},error:null};},
    async deleteUser(id){for(const [email,account] of authAccounts)if(account.user.id===id)authAccounts.delete(email);return {data:{user:null},error:null};},
    async signOut(){return {error:null};},
   },

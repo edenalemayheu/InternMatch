@@ -1,12 +1,18 @@
 import { Router } from 'express';
 import { getCurrentRound } from '../db/queries/rounds.js';
-import { supabase } from '../db/supabaseClient.js';
+import { refreshSession, signInWithPassword, supabase } from '../db/supabaseClient.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 const router = Router();
 const shapeUser = (row, hasProfile = false) => ({ id: row.id, email: row.email, role: row.role, is_admin: !!row.is_admin, hasProfile: !!row.is_admin || hasProfile });
 const shapeSession = (session, user) => ({ token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, user });
 const validation = (res, fields) => res.status(400).json({ error: 'Validation failed', fields });
+const loginDiagnostic = (stage, error) => {
+  const code = error?.code || 'UNKNOWN';
+  const message = error?.message || String(error || 'Unknown error');
+  if (process.env.NODE_ENV === 'development') console.error(`[auth/login] ${stage} failed (${code}): ${message}`);
+  return process.env.NODE_ENV === 'development' ? { stage, code, message } : undefined;
+};
 async function hasProfile(user) {
   if (user.is_admin) return true;
   const { data, error } = await supabase.from(user.role === 'student' ? 'students' : 'companies').select('id').eq('user_id', user.id).maybeSingle();
@@ -35,33 +41,57 @@ router.post('/auth/signup', async (req, res, next) => {
     const authUser = created.user;
     const { error: dbError } = await supabase.from('users').insert({ id: authUser.id, email, role, is_admin: false });
     if (dbError) { await supabase.auth.admin.deleteUser(authUser.id); throw dbError; }
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await signInWithPassword({ email, password });
     if (error || !data.session) throw Object.assign(new Error('Could not start session'), { status: 503 });
     return res.status(201).json(shapeSession(data.session, shapeUser({ ...authUser, email, role, is_admin: false })));
   } catch (err) { return next(err); }
 });
 
 router.post('/auth/login', async (req, res, next) => {
-  const { email, password } = req.body || {};
+  const { password } = req.body || {};
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : req.body?.email;
   const fields = {};
   if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email)) fields.email = 'Enter a valid email';
   if (typeof password !== 'string' || !password) fields.password = 'Password is required';
   if (Object.keys(fields).length) return validation(res, fields);
+  let signIn;
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.user || !data.session) return res.status(401).json({ error: 'Invalid email or password' });
+    signIn = await signInWithPassword({ email, password });
+  } catch (err) {
+    const diagnostic = loginDiagnostic('sign_in', err);
+    return res.status(401).json({ error: 'Invalid email or password', ...(diagnostic ? { diagnostic } : {}) });
+  }
+  const { data, error } = signIn;
+  if (error || !data.user || !data.session) {
+    const diagnostic = loginDiagnostic('sign_in', error || new Error('Supabase returned no user or session'));
+    return res.status(401).json({ error: 'Invalid email or password', ...(diagnostic ? { diagnostic } : {}) });
+  }
+  try {
     const { data: row, error: dbError } = await supabase.from('users').select('id,email,role,is_admin').eq('id', data.user.id).maybeSingle();
-    if (dbError) throw dbError;
-    if (!row) return res.status(401).json({ error: 'Invalid email or password' });
-    return res.json(shapeSession(data.session, shapeUser(row, await hasProfile(row))));
-  } catch (err) { return next(err); }
+    if (dbError) {
+      const diagnostic = loginDiagnostic('profile_lookup', dbError);
+      return res.status(500).json({ error: 'Could not load account profile', ...(diagnostic ? { diagnostic } : {}) });
+    }
+    if (!row) {
+      const diagnostic = loginDiagnostic('profile_lookup', Object.assign(new Error(`No public.users row found for authenticated user ${data.user.id}`), { code: 'PROFILE_NOT_FOUND' }));
+      return res.status(401).json({ error: 'Invalid email or password', ...(diagnostic ? { diagnostic } : {}) });
+    }
+    const profile = await hasProfile(row);
+    return res.json(shapeSession(data.session, shapeUser(row, profile)));
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      const diagnostic = loginDiagnostic('role_resolution', err);
+      return res.status(err.status || 500).json({ error: 'Could not resolve account role', diagnostic });
+    }
+    return next(err);
+  }
 });
 
 router.post('/auth/refresh', async (req, res, next) => {
   const refresh_token = req.body?.refresh_token;
   if (typeof refresh_token !== 'string' || !refresh_token) return res.status(401).json({ error: 'Invalid or expired session' });
   try {
-    const { data, error } = await supabase.auth.refreshSession({ refresh_token });
+    const { data, error } = await refreshSession({ refresh_token });
     if (error || !data.user || !data.session) return res.status(401).json({ error: 'Invalid or expired session' });
     const { data: row, error: dbError } = await supabase.from('users').select('id,email,role,is_admin').eq('id', data.user.id).maybeSingle();
     if (dbError) throw dbError;
