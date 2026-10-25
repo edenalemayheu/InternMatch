@@ -67,4 +67,4 @@
 - The runner now advances in the legal order: lock student rankings, shortlist during `shortlisting`, lock shortlist, interview, rank, lock company rankings, run matching, mark matched, reveal, and verify persisted student/company match reads.
 - Added `--reset` to create a new `ranking_open` round before creating its demo postings and running the flow. `--fake` runs the same flow against the in-memory Supabase adapter without touching a remote project.
 - Verified `node scripts/e2e-round.js --fake` and `node scripts/e2e-round.js --fake --reset` both completed with four persisted matches. A dead API URL printed `FAIL API_UNREACHABLE` and exited 1.
-- Commit: pending.
+- Commit: `9352c4d Fix E2E round runner and reset flow`.
