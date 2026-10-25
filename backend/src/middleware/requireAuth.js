@@ -17,6 +17,7 @@ export async function requireAuth(req, res, next) {
     if (!profile) return res.status(403).json({ error: 'Account setup incomplete' });
 
     req.user = profile;
+    req.authUser = data.user;
     next();
   } catch (err) {
     next(err);

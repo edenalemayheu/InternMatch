@@ -31,3 +31,4 @@ for (const f of files) {
   }
 }
 console.log(`\nTotal: ${found} lines with emoji`);
+process.exitCode = found > 0 ? 1 : 0;

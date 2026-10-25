@@ -96,11 +96,12 @@ export function runMatching({ students, postings, studentRankings, companyRankin
     }
   }
 
-  // ── Sort: score desc, then studentRank asc, then studentId asc ────────────
+  // Stable tie order: score, student rank, student id, then posting id.
   rawPairs.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     if (a.studentRank !== b.studentRank) return a.studentRank - b.studentRank;
-    return a.studentId < b.studentId ? -1 : a.studentId > b.studentId ? 1 : 0;
+    if (a.studentId !== b.studentId) return a.studentId < b.studentId ? -1 : 1;
+    return a.postingId < b.postingId ? -1 : a.postingId > b.postingId ? 1 : 0;
   });
 
   // ── Greedy matching pass ───────────────────────────────────────────────────

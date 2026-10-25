@@ -1,10 +1,22 @@
 import { Router } from 'express';
-// import { requireAuth } from '../middleware/requireAuth.js';
-// import { requireRole } from '../middleware/requireRole.js';
-
-const router = Router();
-
-// TODO (step 3): all /admin/* routes. Apply requireAuth + requireAdmin to every one.
-// Keep handlers thin: put logic in services/. See docs/api/endpoints.md.
-
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+const execFileAsync=promisify(execFile);
+import { supabase } from '../db/supabaseClient.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
+import { runMatching } from '../matching/matchingEngine.js';
+const router=Router();router.use(requireAuth,requireAdmin);
+const PHASES=['ranking_open','ranking_locked','shortlisting','shortlist_locked','interviewing','company_ranking','company_locked','matched','revealed'];
+async function current(){const {data,error}=await supabase.from('rounds').select('*').order('created_at',{ascending:false}).limit(1).maybeSingle();if(error)throw error;return data;}
+function list(table,key){return async(req,res,next)=>{try{const r=await current();let q=supabase.from(table).select('*');if(r&&['student_rankings','company_rankings','shortlists'].includes(table))q=q.eq('round_id',r.id);const {data,error}=await q;if(error)throw error;return res.json({[key]:data||[]});}catch(e){next(e);}};}
+router.get('/students',list('students','students'));
+router.get('/companies',list('companies','companies'));
+router.get('/rankings',list('student_rankings','rankings'));
+router.get('/company-rankings',list('company_rankings','rankings'));
+router.get('/shortlists',list('shortlists','shortlists'));router.post('/rounds/advance-phase',async(req,res,next)=>{try{const r=await current();if(!r)return res.status(404).json({error:'No active round'});const i=PHASES.indexOf(r.phase);if(i<0||i===PHASES.length-1)return res.status(400).json({error:'Round is already revealed'});const phase=PHASES[i+1];if(phase==='matched'){const existing=await supabase.from('matches').select('id').eq('round_id',r.id).limit(1);if(existing.error)throw existing.error;if(!(existing.data||[]).length){const result=await runMatching(r.id);const {error:summaryError}=await supabase.from('match_runs').upsert({round_id:r.id,ran_at:new Date().toISOString(),matched_count:result.matched.length,unmatched_student_count:result.unmatched_students.length,unmatched_posting_count:result.unmatched_postings.length},{onConflict:'round_id'});if(summaryError)throw summaryError;}}const update={phase};if(phase==='ranking_locked')update.ranking_locks_at=new Date().toISOString();if(phase==='shortlist_locked')update.shortlist_locks_at=new Date().toISOString();if(phase==='company_locked')update.company_locks_at=new Date().toISOString();if(phase==='revealed')update.reveal_at=new Date().toISOString();const {data,error}=await supabase.from('rounds').update(update).eq('id',r.id).select('*').single();if(error)throw error;if(phase==='ranking_locked'){const {error:e}=await supabase.from('student_rankings').update({locked_at:new Date().toISOString()}).eq('round_id',r.id);if(e)throw e;}if(phase==='company_locked'){const {error:e}=await supabase.from('company_rankings').update({locked_at:new Date().toISOString()}).eq('round_id',r.id);if(e)throw e;}if(phase==='revealed'){const matches=await supabase.from('matches').select('student_id').eq('round_id',r.id);if(matches.error)throw matches.error;const all=await supabase.from('students').select('user_id,id');if(all.error)throw all.error;const won=new Set((matches.data||[]).map(x=>x.student_id));const notes=(all.data||[]).map(s=>({user_id:s.user_id,type:won.has(s.id)?'matched':'not_matched',message:won.has(s.id)?'Your internship match is ready.':'This round ended without a match.'}));if(notes.length){const {error:e}=await supabase.from('notifications').insert(notes);if(e)throw e;}}return res.json({round:data});}catch(e){next(e);}});
+router.post('/rounds/run-matching',async(req,res,next)=>{try{const r=await current();if(!r)return res.status(404).json({error:'No active round'});if(!['company_locked','matched'].includes(r.phase))return res.status(403).json({error:'Action not allowed in current phase',currentPhase:r.phase});const result=await runMatching(r.id);const {error}=await supabase.from('match_runs').upsert({round_id:r.id,ran_at:new Date().toISOString(),matched_count:result.matched.length,unmatched_student_count:result.unmatched_students.length,unmatched_posting_count:result.unmatched_postings.length},{onConflict:'round_id'});if(error)throw error;return res.json(result);}catch(e){next(e);}});
+router.post('/rounds/reset',async(req,res,next)=>{try{const r=await current();if(!r)return res.status(404).json({error:'No active round'});for(const table of ['student_rankings','shortlists','company_rankings','interview_notes','matches','match_runs']){const {error}=await supabase.from(table).delete().eq('round_id',r.id);if(error&&error.code!=='42P01')throw error;}const {error}=await supabase.from('notifications').delete().eq('round_id',r.id);if(error)throw error;const {error:updateError}=await supabase.from('rounds').update({phase:'ranking_open'}).eq('id',r.id);if(updateError)throw updateError;return res.json({ok:true});}catch(e){next(e);}});
+router.post('/seed',async(req,res,next)=>{if(process.env.NODE_ENV==='production'&&process.env.ALLOW_SEED!=='true')return res.status(403).json({error:'Seeding is disabled in production'});try{const script=new URL('../../scripts/seed.js',import.meta.url);const args=[fileURLToPath(script)];if(process.env.NODE_ENV==='production')args.push('--force');await execFileAsync(process.execPath,args,{cwd:process.cwd(),env:process.env,timeout:120000});return res.json({ok:true});}catch(e){return next(e);}});
 export default router;

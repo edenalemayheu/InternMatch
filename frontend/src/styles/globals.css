@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 /* ==========================================================================
    InternMatch — Global Styles
    Reset, base, font import, blob keyframes, page transitions.
@@ -168,7 +169,7 @@ ul, ol { list-style: none; }
 
 /* ── App-page styles (non-landing) ─────────────────────────────────────── */
 /* Inter font for app pages */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 
 /* App layout shell */
 .app-layout {

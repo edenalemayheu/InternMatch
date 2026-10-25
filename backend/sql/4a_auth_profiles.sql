@@ -1,0 +1,22 @@
+-- Auth and profile tables. The `users` table is the profile/role record per API contract.
+DO $$ BEGIN CREATE TYPE user_role AS ENUM ('student', 'company'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE, email text NOT NULL, role user_role NOT NULL, is_admin boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS students (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, full_name text NOT NULL, department text NOT NULL, year text NOT NULL, skills text[] NOT NULL DEFAULT '{}', portfolio_url text, availability text NOT NULL, contact_email text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS companies (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, company_name text NOT NULL, industry text NOT NULL, contact_person text NOT NULL, logo_url text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_students_department ON students(department);
+CREATE INDEX IF NOT EXISTS idx_companies_industry ON companies(industry);
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END $$;
+DROP TRIGGER IF EXISTS students_updated_at ON students;
+CREATE TRIGGER students_updated_at BEFORE UPDATE ON students FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS companies_updated_at ON companies;
+CREATE TRIGGER companies_updated_at BEFORE UPDATE ON companies FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS users_deny_anon ON users;
+CREATE POLICY users_deny_anon ON users FOR ALL TO anon USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS students_deny_anon ON students;
+CREATE POLICY students_deny_anon ON students FOR ALL TO anon USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS companies_deny_anon ON companies;
+CREATE POLICY companies_deny_anon ON companies FOR ALL TO anon USING (false) WITH CHECK (false);

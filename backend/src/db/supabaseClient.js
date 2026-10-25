@@ -5,13 +5,15 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
 const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
+let client = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error(
-    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Copy backend/.env.example to backend/.env and fill it in.'
-  );
-}
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+// All database/auth access is routed through this adapter. Tests can inject a
+// deterministic in-memory implementation without importing a network client.
+export const getSupabase = () => {
+  if (!client) throw Object.assign(new Error('Supabase is not configured'), { status: 503 });
+  return client;
+};
+export const setSupabaseForTests = (fakeClient) => { client = fakeClient; };
+export const supabase = new Proxy({}, { get: (_target, key) => getSupabase()[key] });

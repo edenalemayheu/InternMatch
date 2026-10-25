@@ -1,0 +1,9 @@
+-- Company review workflow and private interview notes.
+DO $$ BEGIN CREATE TYPE shortlist_status AS ENUM ('pending','shortlisted','rejected'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE TABLE IF NOT EXISTS shortlists (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), posting_id uuid NOT NULL REFERENCES postings(id) ON DELETE CASCADE, student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE, round_id uuid NOT NULL REFERENCES rounds(id) ON DELETE CASCADE, shortlist_status shortlist_status NOT NULL DEFAULT 'pending', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(posting_id,student_id,round_id));
+CREATE TABLE IF NOT EXISTS company_rankings (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), posting_id uuid NOT NULL REFERENCES postings(id) ON DELETE CASCADE, round_id uuid NOT NULL REFERENCES rounds(id) ON DELETE CASCADE, ordered_student_ids uuid[], scores jsonb, locked_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(posting_id,round_id));
+CREATE TABLE IF NOT EXISTS interview_notes (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), posting_id uuid NOT NULL REFERENCES postings(id) ON DELETE CASCADE, student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE, round_id uuid NOT NULL REFERENCES rounds(id) ON DELETE CASCADE, company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE, notes text NOT NULL DEFAULT '', updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(posting_id,student_id,round_id));
+CREATE INDEX IF NOT EXISTS idx_shortlists_posting ON shortlists(posting_id);
+CREATE INDEX IF NOT EXISTS idx_company_rankings_round ON company_rankings(round_id);
+CREATE INDEX IF NOT EXISTS idx_interview_notes_owner ON interview_notes(company_id,round_id);
+ALTER TABLE shortlists ENABLE ROW LEVEL SECURITY; ALTER TABLE company_rankings ENABLE ROW LEVEL SECURITY; ALTER TABLE interview_notes ENABLE ROW LEVEL SECURITY;

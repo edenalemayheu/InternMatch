@@ -43,6 +43,8 @@ Walk the sorted list once, maintaining:
 - a `matchedStudents` set
 - a `remainingCapacity` map per `posting_id` (initialized from `postings.capacity`)
 
+Pairs are ordered by mutual score descending, then student rank ascending, then student ID ascending, then posting ID ascending. The last two keys make all ties deterministic even when request/database order changes.
+
 For each pair, in order:
 ```
 if student_id not in matchedStudents AND remainingCapacity[posting_id] > 0:

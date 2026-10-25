@@ -49,3 +49,6 @@ desktop.ini
 
 # Archives
 *.zip
+
+# Backend secrets
+backend/.env

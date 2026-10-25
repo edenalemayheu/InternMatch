@@ -46,8 +46,7 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 app.use((err, req, res, next) => {
   console.error(err);
   // Never leak database or internal details to clients in production.
-  const message = process.env.NODE_ENV === 'production' ? 'Server error' : (err.message || 'Server error');
-  res.status(err.status || 500).json({ error: message });
+  res.status(500).json({ error: 'Server error' });
 });
 
 // On Vercel the platform handles listening; locally we start our own server.

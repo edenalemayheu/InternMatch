@@ -1,10 +1,7 @@
 import { Router } from 'express';
-// import { requireAuth } from '../middleware/requireAuth.js';
-// import { requireRole } from '../middleware/requireRole.js';
-
-const router = Router();
-
-// TODO (step 8): GET /matches/me (403 unless phase = revealed)
-// Keep handlers thin: put logic in services/. See docs/api/endpoints.md.
-
+import { supabase } from '../db/supabaseClient.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireRole } from '../middleware/requireRole.js';
+const router=Router();
+router.get('/matches/me',requireAuth,requireRole('student','company'),async(req,res,next)=>{try{const r=await supabase.from('rounds').select('*').order('created_at',{ascending:false}).limit(1).maybeSingle();if(r.error)throw r.error;if(!r.data||r.data.phase!=='revealed')return res.status(403).json({error:'Results not yet revealed',currentPhase:r.data?.phase||'none'});if(req.user.role==='student'){const s=await supabase.from('students').select('id').eq('user_id',req.user.id).maybeSingle();if(s.error)throw s.error;if(!s.data)return res.json({match:null});const q=await supabase.from('matches').select('*,postings(id,title,required_department,required_skills,capacity,companies(id,company_name,contact_person,industry,logo_url))').eq('round_id',r.data.id).eq('student_id',s.data.id).maybeSingle();if(q.error)throw q.error;if(!q.data)return res.json({match:null});const p=q.data.postings;return res.json({match:{id:q.data.id,round_id:q.data.round_id,student_id:q.data.student_id,posting_id:q.data.posting_id,mutual_score:Number(q.data.mutual_score),created_at:q.data.created_at,posting:{id:p.id,title:p.title,required_department:p.required_department,required_skills:p.required_skills,capacity:p.capacity},company:p.companies}});}const c=await supabase.from('companies').select('id').eq('user_id',req.user.id).maybeSingle();if(c.error)throw c.error;if(!c.data)return res.json({matches:[]});const postings=await supabase.from('postings').select('id,title').eq('company_id',c.data.id).eq('round_id',r.data.id);if(postings.error)throw postings.error;const ids=(postings.data||[]).map(x=>x.id);if(!ids.length)return res.json({matches:[]});const q=await supabase.from('matches').select('*').eq('round_id',r.data.id).in('posting_id',ids);if(q.error)throw q.error;const matches=[];for(const m of q.data||[]){const s=await supabase.from('students').select('id,full_name,department,year,skills,portfolio_url,availability,contact_email').eq('id',m.student_id).maybeSingle();if(s.error)throw s.error;const p=postings.data.find(x=>x.id===m.posting_id);matches.push({...m,mutual_score:Number(m.mutual_score),student:s.data,posting:{id:p.id,title:p.title}});}return res.json({matches});}catch(e){next(e);}});
 export default router;

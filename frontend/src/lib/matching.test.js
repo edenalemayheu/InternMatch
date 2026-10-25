@@ -110,7 +110,7 @@ describe('runMatching', () => {
       sRank('S2', 'P2'),   // S2 ranks P2, but P2 company won't rank S2
     ];
     const companyRankings = [
-      cRank('P1', 'S1'),   // P1 ranks S1 ✓ mutual
+      cRank('P1', 'S1'),   // P1 ranks S1 mutual
       cRank('P2', 'S9'),   // P2 ranks someone else — no mutual with S2
     ];
 
