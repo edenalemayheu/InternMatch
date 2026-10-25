@@ -9,7 +9,7 @@
     "start": "node src/app.js",
     "seed": "node scripts/seed.js",
     "promote-admin": "node src/scripts/promoteAdmin.js",
-    "test": "node --test src/matching/*.test.js src/routes/*.test.js"
+    "test": "node --test src/config/*.test.js src/matching/*.test.js src/routes/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

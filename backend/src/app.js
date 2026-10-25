@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { getRuntimeEnvironment } from './config/environment.js';
 
 import authRoutes from './routes/auth.routes.js';
 import studentsRoutes from './routes/students.routes.js';
@@ -13,15 +14,11 @@ import notificationsRoutes from './routes/notifications.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 
 const app = express();
+const runtimeEnvironment = getRuntimeEnvironment();
 
-// CORS: FRONTEND_ORIGIN may list several origins separated by commas.
-// In production it is required, so the API never silently accepts every origin.
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
-  .split(',').map((o) => o.trim()).filter(Boolean);
-if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
-  throw new Error('FRONTEND_ORIGIN must be set when NODE_ENV=production');
-}
-app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : true }));
+// FRONTEND_ORIGIN supports comma-separated exact origins. Non-browser clients
+// without an Origin header remain supported.
+app.use(cors({ origin: (origin, callback) => callback(null, !origin || runtimeEnvironment.allowedOrigins.includes(origin)) }));
 app.use(express.json({ limit: '100kb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));

@@ -9,5 +9,6 @@
 7. Create demo accounts, demo postings, ranked preferences, and a demo round with `npm run seed --prefix backend`. Save the printed demo logins for local use only.
 8. On a fresh demo Supabase project, run `npm run e2e` from the repository root. This workflow advances and reveals the active round. It requires `ranking_open` and should not be run against a live round with real applicants.
 9. To configure a deployed frontend, set `VITE_API_URL` in `frontend/.env` to the backend URL ending in `/api`.
+10. Deployment instructions for the API and frontend are in `DEPLOY.md`. The backend now fails at startup if its Supabase URL/key are missing; production also requires an HTTPS Supabase URL and an explicit `FRONTEND_ORIGIN` list.
 
 The API contract has no admin create-round endpoint. `backend/scripts/seed.js` creates a demo round only when the database has none.

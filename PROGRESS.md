@@ -1,6 +1,6 @@
 # InternMatch completion progress
 
-**NEXT STEP:** Complete Phase 6 readiness (environment validation, strict env-driven CORS, deploy guide) and strengthen the contract checker so it rejects missing or stub handlers.
+**NEXT STEP:** Strengthen the contract checker so it rejects missing, unhandled, or stub endpoints, then run the complete final suite and production build.
 
 ## Initial repository summary (before implementation)
 - The repository is a React/Vite frontend, Express backend, and Supabase Postgres/Auth project. The root README and package scripts describe separate frontend/backend development.
@@ -45,4 +45,12 @@
 - Added reusable UUID path validation on posting, shortlist, notes, and notification routes; validated ranking and company-ranking IDs, login email/password, and the postings `all` query parameter.
 - Added backend request assertions for invalid body, query, and path inputs on every endpoint that accepts user input. Paths now return the documented 400 `{ error, fields }` envelope.
 - Backend suite: 11 tests passed. Contract checker: 41 documented, 40 frontend calls, 41 backend routes.
+- Commit: pending.
+
+## Unit 3: Phase 6 deployment readiness
+- `/api/health` was already implemented and is exercised by the backend integration test.
+- Restricted CORS to exact `FRONTEND_ORIGIN` values, supports comma-separated origins, defaults development to localhost, and denies browser origins outside the allowlist.
+- Added fail-fast environment checks for Supabase URL/service key, HTTPS in production, required production CORS origins, and malformed origin entries.
+- Added `DEPLOY.md` for the split Vercel frontend/API deployment and linked it from `MANUAL_STEPS.md`.
+- Backend suite: 14 tests passed, including environment and CORS tests. Contract checker remains at 41 documented/implemented routes.
 - Commit: pending.
