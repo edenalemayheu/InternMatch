@@ -5,7 +5,7 @@
 <br/>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/status-in%20development-orange)](#roadmap)
+[![Status](https://img.shields.io/badge/status-complete-brightgreen)](#features)
 [![Made with React](https://img.shields.io/badge/frontend-React-61DAFB?logo=react&logoColor=white)](#tech-stack)
 [![Node.js](https://img.shields.io/badge/backend-Node.js-339933?logo=node.js&logoColor=white)](#tech-stack)
 [![Supabase](https://img.shields.io/badge/database-Supabase%20(Postgres)-3ECF8E?logo=supabase&logoColor=white)](#tech-stack)
@@ -14,9 +14,16 @@
 
 InternMatch is a two-sided, preference-based internship matching platform — students rank the companies they want, companies rank the students they want, and a fair matching algorithm finds the best mutual fit for both sides.
 
+## Demo Video
+
+Watch the full walkthrough here:
+[InternMatch Demo](https://drive.google.com/file/d/10sW7LwxbtY3CzYSnQsguSlBRk6CAwmFp/view?usp=sharing)
+
 </div>
 
 ---
+
+**Status: Complete**
 
 ## Table of Contents
 
@@ -32,7 +39,7 @@ InternMatch is a two-sided, preference-based internship matching platform — st
 - [Tech Stack](#tech-stack)
 - [Database Schema](#database-schema)
 - [Getting Started](#getting-started)
-- [Roadmap](#roadmap)
+- [Possible Extensions](#possible-extensions)
 - [Author](#author)
 - [License](#license)
 
@@ -40,7 +47,7 @@ InternMatch is a two-sided, preference-based internship matching platform — st
 
 Most internship placement today is a one-way street: a student applies, and waits. There's no visibility into fit, no way to signal genuine mutual interest, and no guarantee the outcome reflects what either side actually wants.
 
-**InternMatch flips that model.** Both students and companies submit ranked preferences, and a matching algorithm — inspired by the same class of stable-matching systems used in national medical residency placement (Gale–Shapley) — pairs them based on mutual interest rather than who applied first or who has the single highest GPA.
+**InternMatch flips that model.** Both students and companies submit ranked preferences, and a mutual-score greedy matching algorithm pairs them based on mutual interest rather than who applied first or who has the single highest GPA.
 
 ## The Problem
 
@@ -97,23 +104,19 @@ The shortlisting step is deliberately separated from interviewing: shortlisting 
 
 Once a company finalizes its shortlist:
 
-- The shortlisted student receives a notification (in-app + email): *"You've been shortlisted by [Company] for [Posting]. They'll be in touch to schedule an interview."*
+- The shortlisted student receives an in-app notification: *"You've been shortlisted by [Company] for [Posting]. They'll be in touch to schedule an interview."*
 - The student's **contact email is revealed to that company only**, and only after shortlisting — never before. This keeps outreach tied to the ranking system rather than allowing back-channel contact.
 - From there, the company reaches out and coordinates the interview directly (email, phone, calendar tool of their choice). InternMatch does not manage scheduling.
 
 This mirrors how platforms like LinkedIn/Handshake work: the platform's job is to unlock the *right* contact at the *right* time, not to run a scheduling system.
 
-*(Future v2 idea: lightweight in-app messaging between shortlisted students and company admins, so coordination stays on-platform. Not part of the current build.)*
-
 ## Unmatched Students
 
 There is no waitlist in the current build. A student or posting that doesn't get matched in a round simply becomes eligible again when the **next round** opens.
 
-*(Future v2 idea: a short compressed "Gap Round" immediately after Match Day for unmatched students/companies with remaining capacity, so no one loses an entire summer. Not part of the current build — ship the single annual round first.)*
-
 ## Admin & Round Control
 
-The admin role exists so rounds can be tested, demoed, and (eventually) run in production without being locked to hardcoded calendar dates.
+The admin role lets administrators control rounds without relying on hardcoded calendar dates.
 
 - **Admin is a normal account** with an `is_admin` flag — there is no separate signup path or public "admin" entry point. An admin logs in through the same login form as everyone else and is redirected to `/admin` instead of a student/company dashboard.
 - **Phase is a stored field, not a date comparison.** The `rounds` table has a `phase` column (`ranking_open → ranking_locked → shortlisting → shortlist_locked → interviewing → company_ranking → company_locked → matched → revealed`) plus the target dates above for reference. Phase transitions are currently admin-triggered only.
@@ -123,7 +126,6 @@ The admin role exists so rounds can be tested, demoed, and (eventually) run in p
   - **Force advance to next phase** — manually move the round forward
   - **Run matching algorithm now** — execute the matching engine on demand and see matched pairs, unmatched students, and unmatched postings
   - **Reset round** — wipe rankings/shortlists/matches back to a clean state for repeated testing
-- **Path to production:** the admin "Run matching algorithm now" button and a future scheduled job (e.g. a Vercel Cron function checking phase + `reveal_at` daily) both call the same underlying `runMatching()` function — one triggered by a person, one by a schedule. Only the manual/admin path is built currently.
 
 ## Landing Page & Auth
 
@@ -137,14 +139,14 @@ The admin role exists so rounds can be tested, demoed, and (eventually) run in p
 
 ## Features
 
-- **Student profiles** — department, year, skills, projects, certificates, portfolio, availability
-- **Smart posting filters** — relevant postings surfaced automatically, with a toggle to browse everything
-- **Preference-based applications** — one ranked list per round replaces per-company applications and cover letters
-- **Shortlisting & interview workflow** — companies narrow their applicant pool to a shortlist, then interview, before submitting a final ranking
-- **Holistic company review** — companies rank or score candidates however they choose (skills, projects, interviews, GPA — their call)
-- **Score-based greedy matching** — a fast, explainable algorithm that favors genuine mutual fit
-- **Locked rounds** — rankings freeze at each phase boundary so matching runs against a stable snapshot
-- **Admin control panel** — manual phase control, on-demand matching, round reset, full data visibility for testing/demo
+- Student and company signup and login with role-based access
+- Student profile management and company posting creation
+- Student posting ranking and company applicant shortlisting
+- Interview workflow and company candidate ranking
+- Admin-controlled round phases and round reset
+- Mutual-score greedy matching: `score = 1 / student rank + 1 / company rank`, sorted highest first and assigned in one pass while respecting posting capacity
+- Results reveal controlled by the round phase
+- In-app notifications for shortlist and match outcomes
 
 ## Tech Stack
 
@@ -179,19 +181,11 @@ npm install
 npm run dev
 ```
 
-## Roadmap
+## Possible Extensions
 
-- [ ] Student profile creation & editing
-- [ ] Posting creation & department/skill filtering
-- [ ] Ranking submission UI (student side)
-- [ ] Shortlisting workflow (company side, profile-review only)
-- [ ] Contact-reveal + notification on shortlist
-- [ ] Scoring/ranking UI (company side, post-interview)
-- [ ] Score-based greedy matching engine
-- [ ] Match results & reveal screen
-- [ ] Admin dashboard (phase control, run-matching, reset, full data view)
-- [ ] Seed data script for demo/testing
-- [ ] Landing page + role-based signup/onboarding
+- In-app interview coordination between shortlisted students and company admins.
+- A short gap round for unmatched students and companies with remaining capacity.
+- Scheduled phase advancement based on round dates.
 
 ## Author
 
