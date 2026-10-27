@@ -92,5 +92,5 @@ InternMatch/
 
 - One component per file; component filenames in `PascalCase.jsx`.
 - One route file per resource in `backend/src/routes/`; keep route handlers thin, push logic into `services/`.
-- `matchingEngine.js` exports a single `runMatching(roundId)` function — this is the only place the matching algorithm is implemented, called by both the admin route and (in a future version) a scheduled job. Never duplicate this logic elsewhere.
+- `backend/src/matching/matching.js` exports the pure matching function. The backend matching service and admin route use it for on-demand matching.
 - Design tokens (colors, spacing, type scale from `ui-foundation-spec.md`) live in `frontend/src/styles/tokens.css` as CSS custom properties, imported once in `globals.css`. Components reference tokens (e.g. `var(--color-primary-600)`), never hardcoded hex values.

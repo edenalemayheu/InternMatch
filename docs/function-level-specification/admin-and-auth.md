@@ -79,11 +79,6 @@ Other transitions (`ranking_open → ranking_locked`, `ranking_locked → shortl
 
 ---
 
-## 5. Path to Production (documented, not built)
+## 5. Possible Extension: Scheduled Phase Advancement
 
-To move from "admin-triggered" to "automatic," a future version would add a scheduled endpoint (e.g. triggered by a Vercel Cron job once daily) that:
-1. Loads the current round.
-2. Compares `NOW()` against the relevant `*_at` field for the current phase.
-3. If past due, calls the same `advancePhase()` function the admin button calls.
-
-No new matching or phase logic would be needed — only a scheduler invoking the existing functions. This should be called out explicitly if asked, since it's the cleanest way to demonstrate the current build was designed with production in mind, without needing to build the scheduler now.
+A scheduled endpoint can load the current round, compare the current time with the phase date fields, and call the existing `advancePhase()` function when a phase is due. Admin-controlled phase advancement remains available for direct control and demonstrations.
