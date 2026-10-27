@@ -73,7 +73,7 @@ Actors: **Student**, **Company**, **Admin**
 **Actor:** Student
 **Precondition:** A company has marked the student `shortlisted`, and round phase has reached `shortlist_locked`.
 **Flow:**
-1. Student receives an in-app + email notification: "You've been shortlisted by [Company]."
+1. Student receives an in-app notification: "You've been shortlisted by [Company]."
 2. The company can now see the student's contact email and reaches out directly (email/phone/calendar tool of their choice).
 3. Interview happens off-platform.
 **Postcondition:** No further platform action required until reveal.
