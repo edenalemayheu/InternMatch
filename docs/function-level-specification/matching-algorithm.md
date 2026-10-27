@@ -1,7 +1,7 @@
 # Function-Level Spec: Matching Algorithm
 
 ## Location
-`backend/src/services/matchingEngine.js` — exports a single function `runMatching(roundId)`. This is the **only** implementation of the matching logic in the codebase; it is called both by the admin "Run matching algorithm now" endpoint and, in a future production version, by a scheduled job. Never duplicate this logic elsewhere.
+`backend/src/matching/matching.js` — exports the pure function `runMatching({ students, postings, studentRankings, companyRankings })`. The backend matching service calls this implementation, and the admin route can run matching on demand.
 
 ## Signature
 
@@ -15,7 +15,7 @@ async function runMatching(roundId: string): Promise<{
 
 ## Algorithm
 
-This is a **single-pass greedy algorithm**, not full Gale–Shapley — it does not perform iterative propose/reject rounds. Document this clearly in code comments, since it's a simplified, explainable variant, not a formal stable-matching proof. It is explainable-by-design: every match can be traced to one score computed from two rank positions.
+This is a **single-pass greedy algorithm**. It does not perform iterative propose/reject rounds or claim a formal stable-matching guarantee. It is explainable-by-design: every match can be traced to one score computed from two rank positions.
 
 ### Step 1 — Load data
 Fetch all `student_rankings` and `company_rankings` rows for `roundId`.
@@ -58,8 +58,8 @@ else:
 - `unmatched_students` = all students with a `student_rankings` row for this round, minus `matchedStudents`.
 - `unmatched_postings` = all postings for this round where `remainingCapacity > 0` after the pass.
 
-### Step 6 — Persist and return
-Write all matched pairs to the `matches` table (fields: `round_id, student_id, posting_id, mutual_score`). Return the structured result described in the Signature section above.
+### Step 6 — Return results
+Return the matches, unmatched students and postings, and scored pairs with their match or skip reason. Persistence is handled by the backend service that calls this pure function.
 
 ## Scores vs. Ranks (company side)
 
