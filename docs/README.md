@@ -6,6 +6,7 @@ This folder contains the full specification for InternMatch, intended to be read
 
 | Document | Covers |
 |---|---|
+| [`InternMatch-Documentation.pdf`](./InternMatch-Documentation.pdf) | Downloadable project documentation PDF |
 | [`requirements.md`](./requirements.md) | Functional and non-functional requirements |
 | [`usecase.md`](./usecase.md) | Use cases per actor (Student, Company, Admin) |
 | [`database.md`](./database.md) | Full database schema, types, relationships, indexes |
